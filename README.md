@@ -1,156 +1,176 @@
-# Incident Postmortem Generator
+<div align="center">
 
-**Domain:** AIOps / Site Reliability
-**Team:** Synergy 2026
-**Round 1 status:** Working proof-of-concept (see Demo below)
+# 🔍 FORENSIX
 
-## Problem
+### Forensic Observability & Root-cause Engine for Network & System Incident eXplanation
 
-After a production incident, engineers manually write a postmortem covering
-the timeline, root cause, impact, resolution, and preventive measures. This
-takes hours and is often delayed or skipped. We automatically generate a
-structured, evidence-grounded postmortem from raw incident artifacts —
-alert logs, deployment records, on-call notes, and Slack threads.
+*An AI-powered incident postmortem generator for SRE & AIOps teams*
 
-## Why this isn't "upload logs → GPT → report"
+<br/>
 
-1. **Retrieval, not stuffing.** Every artifact is chunked and embedded into a
-   vector store (ChromaDB), scoped per-incident. Each agent retrieves only
-   the evidence relevant to its question, instead of dumping every log into
-   one giant prompt — this reduces hallucination and scales to large log
-   volumes.
-2. **Specialized agent pipeline, not one prompt.** Five agents run in
-   sequence, each with a narrow job and a strict JSON output contract, so
-   later agents consume structured output from earlier ones instead of
-   re-reading raw text:
-   - **Timeline Builder** — reconstructs a strictly evidence-based chronology
-   - **Root Cause Investigator** — separates trigger vs. underlying cause, with a confidence score
-   - **Impact Analyzer** — quantifies blast radius (severity, services, users, duration)
-   - **Remediation Planner** — extracts what was done + proposes concrete, owner-assignable preventive actions
-   - **Quality Reviewer** — scores completeness/consistency and flags gaps *before* the report ships
-3. **Self-grading, not blind trust.** The Quality Reviewer agent checks the
-   draft against the evidence for internal consistency and surfaces a
-   confidence/completeness score in the UI — judges can see the system
-   knows what it doesn't know.
+![Status](https://img.shields.io/badge/status-hackathon--build-c94a3d?style=for-the-badge)
+![License](https://img.shields.io/badge/license-TBD-b9975b?style=for-the-badge)
+![Made With](https://img.shields.io/badge/made%20with-%E2%98%95%20%2B%20%F0%9F%94%A5-4f7a56?style=for-the-badge)
 
-## Architecture
+<br/>
 
-```
-Alert Logs, Deploy Records, On-call Notes, Slack
-                    │
-                    ▼
-        Ingestion & Chunking (rag.py)
-                    │
-                    ▼
-   Local Embeddings (sentence-transformers) → ChromaDB (per-incident)
-                    │
-                    ▼
-        ┌───────────────────────────┐
-        │      Agent Pipeline        │
-        │  Timeline Builder          │
-        │  → Root Cause Investigator │
-        │  → Impact Analyzer         │
-        │  → Remediation Planner     │
-        │  → Quality Reviewer        │
-        └───────────────────────────┘
-                    │
-                    ▼
-     Structured JSON Report (SQLite) → React Dashboard
-```
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/React-18.2-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
+[![ChromaDB](https://img.shields.io/badge/ChromaDB-vector%20store-7C3AED?style=flat-square)](https://www.trychroma.com)
+[![SQLite](https://img.shields.io/badge/SQLite-persistence-003B57?style=flat-square&logo=sqlite&logoColor=white)](https://sqlite.org)
 
-## Tech Stack
+<br/>
 
-| Layer | Choice | Production equivalent (for the pitch) |
-|---|---|---|
-| Frontend | React (CDN, single file) | Next.js |
-| Backend | FastAPI (Python) | FastAPI on Kubernetes |
-| Structured DB | SQLite | PostgreSQL |
-| Vector DB | ChromaDB (embedded) | Pinecone / Weaviate |
-| Embeddings | sentence-transformers (local, free) | same, or hosted embedding endpoint |
-| LLM | Claude (Anthropic API) | same |
-| Orchestration | Sequential agent pipeline (agents.py) | LangGraph / temporal workflow |
+**[📖 Documentation](#-getting-started)** &nbsp;•&nbsp;
+**[🖥️ Screenshots](#️-screenshots)** &nbsp;•&nbsp;
+**[⚙️ Architecture](#️-how-it-works)** &nbsp;•&nbsp;
+**[🚀 Quickstart](#-getting-started)**
 
-## Datasets
+</div>
 
-- **Real postmortems (reference/eval set):** [danluu/post-mortems](https://github.com/danluu/post-mortems) — 200+ real postmortems from major tech orgs, used to benchmark structure and tone.
-- **Synthetic demo incident:** `backend/sample_data/` — a hand-crafted, realistic incident (bad config deploy → DB pool exhaustion → checkout outage) spanning all 4 artifact types, so the pipeline is demoable without real production data.
-- Additional synthetic data can be generated by prompting an LLM to role-play alert streams / Slack threads for a given root-cause scenario — useful for stress-testing the pipeline against multiple incident types before the demo.
+<br/>
 
-## Quickstart
+---
+
+## 📌 Overview
+
+Most incident postmortems get written days late, from memory, missing half the timeline — or never get written at all.
+
+**FORENSIX** ingests raw incident evidence (alert logs, deployment records, on-call notes, Slack threads) and runs it through a **5-agent AI pipeline** that reconstructs the full story: what happened, why, who was affected, and what to fix — with every claim traceable back to the source evidence.
+
+<br/>
+
+## 🖥️ Screenshots
+
+<div align="center">
+
+### Dashboard — Live Case Overview
+<img src="docs/screenshots/dashboard.png" alt="FORENSIX Dashboard" width="850"/>
+
+<br/><br/>
+
+### Case Report — Full Postmortem Detail
+<img src="docs/screenshots/case-report.png" alt="FORENSIX Case Report" width="850"/>
+
+</div>
+
+<br/>
+
+## ⚙️ How It Works
+
+Every incident report passes through five specialized agents, each with one narrow job:
+
+<div align="center">
+
+| # | Agent | Responsibility |
+|:-:|:------|:----------------|
+| 1️⃣ | 🕐 **Timeline Builder** | Reconstructs an evidence-based chronology — no guessing about order |
+| 2️⃣ | 🎯 **Root Cause Investigator** | Separates trigger from underlying cause, with a confidence score |
+| 3️⃣ | 📊 **Impact Analyzer** | Quantifies services, users, and duration affected |
+| 4️⃣ | 🛠️ **Remediation Planner** | Produces owner-assignable next steps |
+| 5️⃣ | ✅ **Quality Reviewer** | Checks every claim against evidence and scores the report |
+
+</div>
+
+The output is a full **case file**: timeline, root cause with confidence %, blast radius, and prioritized preventive measures — all backed by a per-incident RAG index over the original evidence.
+
+<br/>
+
+## ✨ Features
+
+- 🗂️ **Case Library** — 8 fully worked example postmortems, ready to explore with zero setup
+- 🔍 **Evidence-grounded reports** — every claim links back to its source artifact
+- 📈 **Analytics dashboard** — severity trends, confidence scores, report activity heatmap
+- 🎯 **Root-cause confidence scoring** — know how sure the system is, not just what it thinks happened
+- 🕵️ **Noir case-file UI** — because incident reviews shouldn't look like a spreadsheet
+
+<br/>
+
+## 🧱 Tech Stack
+
+<div align="center">
+
+| Layer | Technology |
+|:------|:-----------|
+| **Backend** | FastAPI · SQLite · ChromaDB (per-incident retrieval) |
+| **AI Pipeline** | LLM-powered 5-agent sequential pipeline |
+| **Frontend** | Single-file React (CDN, zero build step) |
+| **Styling** | Custom noir/case-file CSS theme |
+
+</div>
+
+<br/>
+
+## 🚀 Getting Started
 
 ```bash
-# Backend
 cd backend
-python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
+python -m venv venv
+venv\Scripts\activate        # Windows
 pip install -r requirements.txt
-cp .env.example .env        # add your ANTHROPIC_API_KEY
 uvicorn main:app --reload --port 8000
 ```
 
-Then open **http://localhost:8000/** in your browser. FastAPI now serves the
-dashboard directly (`frontend/index.html` is mounted as a static site at `/`),
-so the UI and the API share one origin and one port — no CORS config, no
-second server to run.
+Then open **`http://localhost:8000`**.
 
-From the dashboard: click **"Load Demo Incident"** on the empty-state screen
-(this makes real `POST /api/incidents` + `POST /api/incidents/{id}/generate`
-calls using `backend/sample_data/`, and writes to SQLite), or go to **New
-Investigation**, click **"Load Sample Evidence"** or paste your own logs, and
-click **Run Investigation**.
+> 💡 **No API key? No problem.** Head straight to **Case Library** in the sidebar for 8 fully worked example postmortems — DB connection leaks, DNS misconfigs, cache stampedes, TLS expiry, and more. Zero setup required.
 
-You can still run `python seed_demo.py` from a second terminal for a
-scripted, non-interactive seed.
+<br/>
 
-## API reference (used by the frontend)
+<div align="center">
 
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/api/incidents` | Create an incident + artifacts, index into ChromaDB |
-| `GET` | `/api/incidents` | List all incidents (id, title, status, created_at) |
-| `GET` | `/api/incidents/{id}` | Incident detail: artifacts + latest report |
-| `POST` | `/api/incidents/{id}/generate` | Run the 5-agent pipeline, persist the report |
-| `GET` | `/api/incidents/{id}/report` | Latest report JSON for an incident |
-| `GET` | `/api/sample-data` | Reads `sample_data/*.txt` for one-click demo loading |
-| `GET` | `/api/analytics` | Aggregates severity counts, avg confidence/completeness, per-day report counts — powers the Analytics charts + heatmap |
-| `GET` | `/api/health` | Liveness check the frontend polls to show the connection banner |
+[![Try Case Library](https://img.shields.io/badge/⚡_Try_the_Case_Library-c94a3d?style=for-the-badge)](http://localhost:8000)
+[![View Docs](https://img.shields.io/badge/📖_Read_the_Docs-1a1a1e?style=for-the-badge)](#-how-it-works)
 
-If you ever serve the frontend from a different origin than the backend
-(e.g. static hosting), the UI shows a reconnect banner where you can type
-the backend's URL — it's not hardcoded.
+</div>
 
-## Evaluation plan
+<br/>
 
-- **Structural completeness** — does the report populate every required
-  section (timeline, root cause, impact, resolution, preventive measures)?
-- **Timeline accuracy** — do reconstructed timestamps/events match the
-  ground-truth ordering in the source logs?
-- **Grounding / hallucination check** — does every root-cause claim trace
-  back to a retrieved chunk? (Quality Reviewer flags ungrounded claims.)
-- **Reference comparison** — for a handful of `danluu/post-mortems` entries,
-  feed in the raw incident description as if it were logs, and compare
-  structure/coverage against the real published postmortem.
+## 🔑 Live Generation (Optional)
 
-## Repository structure
+To generate a postmortem from **your own** incident evidence instead of the sample library, drop an API key into `backend/.env` and use **New Investigation**. This step is entirely optional — the app is fully explorable without it.
+
+<br/>
+
+## 📁 Project Structure
 
 ```
 postmortem-generator/
 ├── backend/
-│   ├── main.py          # FastAPI routes
-│   ├── agents.py         # Agent pipeline (LLM calls)
-│   ├── rag.py             # Chunking + ChromaDB retrieval
-│   ├── db.py               # SQLite persistence
-│   ├── seed_demo.py         # One-command demo seeding
-│   ├── sample_data/          # Synthetic demo incident (4 artifact types)
-│   └── requirements.txt
+│   ├── main.py            FastAPI routes + static frontend mount
+│   ├── agents.py           5-agent pipeline
+│   ├── rag.py               Per-incident RAG (chunking + ChromaDB)
+│   ├── db.py                 SQLite persistence
+│   └── sample_data/            Demo artifact files
 ├── frontend/
-│   └── index.html        # Single-file React dashboard (no build step)
-└── README.md
+│   └── index.html          React dashboard (no build step)
+└── docs/
+    └── screenshots/          README images
 ```
 
-## Roadmap (post Round 1)
+<br/>
 
-- Knowledge graph linking incidents by shared root causes (recurring
-  failure pattern detection)
-- "Chat with the incident" — Q&A over the retrieved evidence
-- PDF export of the final report
-- Auto-similarity search against past incidents at ingestion time
+## 🗺️ Roadmap
+
+- [ ] Real-time per-agent streaming via SSE
+- [ ] Knowledge graph — auto-link incidents sharing a root cause
+- [ ] Runbooks — turn recurring preventive measures into assignable playbooks
+
+<br/>
+
+## 👥 Team
+
+**Team Synergy 2026** — built for *[hackathon name]*, July 2026
+
+<br/>
+
+<div align="center">
+
+**License:** TBD
+
+<br/>
+
+Made with 🔥 and too much coffee ☕
+
+</div>
