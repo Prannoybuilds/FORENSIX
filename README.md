@@ -46,12 +46,12 @@ Most incident postmortems get written days late, from memory, missing half the t
 <div align="center">
 
 ### Dashboard — Live Case Overview
-<img src="docs/screenshots/dashboard.png" alt="FORENSIX Dashboard" width="850"/>
+<img src="docs/screenshots/dashboard.png" alt="FORENSIX Dashboard" width="95%"/>
 
 <br/><br/>
 
 ### Case Report — Full Postmortem Detail
-<img src="docs/screenshots/case-report.png" alt="FORENSIX Case Report" width="850"/>
+<img src="docs/screenshots/case-report.png" alt="FORENSIX Case Report" width="95%"/>
 
 </div>
 
