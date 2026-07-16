@@ -161,7 +161,7 @@ postmortem-generator/
 
 ## 👥 Team
 
-**Team Synergy 2026** — built for *[hackathon name]*, July 2026
+**ByteBandits** — built for *[SYNERGY 2026]*, July 2026
 
 <br/>
 
