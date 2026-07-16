@@ -1,0 +1,12 @@
+#incident-2291
+
+[14:02] pagerduty-bot: 🔴 CRITICAL - checkout-service error rate spike - paging @oncall
+[14:08] s.rao: on it, looking now
+[14:11] s.rao: seeing DB connection pool exhaustion on orders-db
+[14:13] r.mehta: oh no, I merged a pool size change this morning, dropping to review it now
+[14:14] s.rao: yeah that's it, max_pool_size went from 50 -> 15, way too low for checkout's peak concurrency
+[14:15] team-lead: ok let's roll back immediately, we can revisit the cost optimization later with a proper load test
+[14:16] s.rao: rolling back to v4.7.1 now
+[14:22] s.rao: error rate back to baseline, pool exhaustion cleared
+[14:25] team-lead: nice work team, let's write this up. r.mehta can you add a follow up ticket for load-testing config changes before merge
+[14:26] r.mehta: on it

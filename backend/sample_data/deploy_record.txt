@@ -1,0 +1,11 @@
+Deployment Log - checkout-service
+
+2026-07-10 13:58:02 UTC
+Deployed checkout-service v4.7.2 (commit a91fbe2) to production via GitHub Actions.
+Change summary: "Refactor DB connection pooling config, reduce max_pool_size from 50 to 15 to save costs"
+Author: r.mehta
+Approved by: 1 reviewer (auto-approved, low-risk label)
+Rollout strategy: canary 10% -> 100% over 5 minutes (faster than standard 30 min rollout)
+
+2026-07-10 14:26:40 UTC
+Rolled back checkout-service to v4.7.1 (previous stable) after incident INC-2291.

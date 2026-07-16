@@ -1,0 +1,12 @@
+backend/venv/
+venv/
+__pycache__/
+*.pyc
+.env
+backend/.env
+postmortem.db
+backend/postmortem.db
+chroma_store/
+backend/chroma_store/
+node_modules/
+.DS_Store

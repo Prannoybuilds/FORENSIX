@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FORENSIX — Incident Postmortem Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+:root{
+  --ink-black:#0b0b0d;
+  --ink-black-2:#141417;
+  --paper:#e9dfc4;
+  --paper-dark:#dcd0ac;
+  --paper-line:#c8bb92;
+  --paper-text:#241f16;
+  --paper-text-soft:#5a5138;
+  --rust:#a8382f;
+  --rust-bright:#c94a3d;
+  --brass:#b9975b;
+  --brass-dim:#7d6a45;
+  --moss:#4f7a56;
+  --panel:#1a1a1e;
+  --panel-border:#2c2c31;
+  --panel-border-soft:#232327;
+  --text-hi:#efe9d8;
+  --text-mid:#a6a196;
+  --text-dim:#69655c;
+  --font-display:'Special Elite', 'JetBrains Mono', monospace;
+  --font-mono:'JetBrains Mono', monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{background:var(--ink-black);color:var(--text-hi);font-family:var(--font-mono);-webkit-font-smoothing:antialiased;}
+#root{min-height:100vh;}
+::selection{background:var(--rust);color:var(--paper);}
+a{color:inherit;}
+.neon-title{
+  font-family:var(--font-display);
+  font-size:34px;
+  letter-spacing:4px;
+  text-align:center;
+  color:#fff2e0;
+  text-shadow:
+    0 0 4px #ffdca8,
+    0 0 10px var(--brass),
+    0 0 22px var(--rust-bright),
+    0 0 40px var(--rust);
+  animation:neon-flicker 3.5s infinite alternate;
+}
+.neon-title span{color:var(--rust-bright);text-shadow:0 0 6px var(--rust-bright),0 0 18px var(--rust-bright),0 0 34px var(--rust);}
+@keyframes neon-flicker{
+  0%,19%,21%,23%,54%,56%,100%{opacity:1;}
+  20%,22%,55%{opacity:.82;}
+}
+.neon-sub{text-align:center;font-size:12px;letter-spacing:5px;color:var(--brass);text-shadow:0 0 8px rgba(185,151,91,.6);text-transform:uppercase;margin-top:6px;}
+.topbar-v2{display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px 24px 10px;background:var(--panel);border-bottom:1px solid var(--panel-border);position:sticky;top:0;z-index:40;}
+.topbar-v2-row{display:flex;align-items:center;width:100%;}
+.topbar-v2-row .tb-spacer{flex:1;}
+button{font-family:var(--font-mono);cursor:pointer;}
+input,textarea,select{font-family:var(--font-mono);}
+
+.app{display:flex;flex-direction:column;min-height:100vh;background:radial-gradient(circle at 15% 0%, #17171a 0%, var(--ink-black) 55%);}
+
+.conn-banner{background:#3a1c19;border-bottom:1px solid var(--rust);color:#f3c9c4;font-size:11.5px;padding:9px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.conn-banner input{background:#1a1a1e;border:1px solid var(--panel-border);color:var(--text-hi);padding:5px 8px;border-radius:3px;font-size:11px;width:220px;}
+.conn-banner button{background:var(--rust);color:var(--paper);border:none;padding:6px 12px;border-radius:3px;font-size:10.5px;letter-spacing:1px;font-weight:700;}
+.conn-ok{background:#16241a;border-bottom:1px solid var(--moss);color:#bfe3c8;font-size:10.5px;padding:5px 20px;display:flex;gap:8px;align-items:center;}
+.dot-live{width:7px;height:7px;border-radius:50%;background:#5fbf72;box-shadow:0 0 6px #5fbf72;}
+
+.topbar{display:flex;align-items:center;gap:20px;padding:14px 24px;background:var(--panel);border-bottom:1px solid var(--panel-border);position:sticky;top:0;z-index:40;}
+.brand{display:flex;flex-direction:column;gap:1px;margin-right:8px;}
+.brand-name{font-family:var(--font-display);font-size:20px;letter-spacing:1px;color:var(--text-hi);}
+.brand-name span{color:var(--rust-bright);}
+.brand-sub{font-size:9px;letter-spacing:3px;color:var(--text-dim);text-transform:uppercase;}
+.case-tag{background:var(--paper);color:var(--paper-text);font-family:var(--font-display);font-size:13px;letter-spacing:1px;padding:6px 14px;border-radius:2px;box-shadow:0 2px 0 rgba(0,0,0,.4);transform:rotate(-1deg);}
+.sev-badge{border:1px solid var(--rust-bright);color:var(--rust-bright);font-size:11px;letter-spacing:2px;padding:5px 10px;border-radius:2px;transform:rotate(1deg);font-weight:700;}
+.tb-spacer{flex:1;}
+.tb-time{font-size:11px;color:var(--text-mid);text-align:right;line-height:1.5;}
+.tb-time b{color:var(--text-hi);letter-spacing:1px;}
+.tb-icons{display:flex;gap:14px;align-items:center;margin-left:18px;color:var(--text-mid);}
+.bell{position:relative;}
+.bell .dot{position:absolute;top:-5px;right:-6px;background:var(--rust-bright);color:#fff;font-size:9px;border-radius:50%;width:15px;height:15px;display:flex;align-items:center;justify-content:center;font-weight:700;}
+.icon-btn{background:none;border:none;color:var(--text-mid);display:flex;align-items:center;}
+.icon-btn:hover{color:var(--text-hi);}
+
+.shell{display:flex;flex:1;min-height:0;}
+
+.sidebar{width:230px;flex:0 0 230px;background:var(--panel);border-right:1px solid var(--panel-border);padding:20px 14px;display:flex;flex-direction:column;gap:22px;}
+.side-label{font-size:10px;letter-spacing:3px;color:var(--text-dim);padding:0 8px;margin-bottom:8px;}
+.nav-list{display:flex;flex-direction:column;gap:2px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:3px;font-size:12px;letter-spacing:.5px;color:var(--text-mid);border:1px solid transparent;background:none;text-align:left;width:100%;transition:background .12s,color .12s;}
+.nav-item svg{flex:0 0 15px;opacity:.85;}
+.nav-item:hover{color:var(--text-hi);background:#202024;}
+.nav-item.active{background:linear-gradient(90deg, rgba(168,56,47,.22), rgba(168,56,47,.05));color:var(--text-hi);border-color:rgba(168,56,47,.4);}
+.nav-item.active svg{opacity:1;color:var(--rust-bright);}
+.quick-btn{margin-top:4px;background:var(--rust);color:var(--paper);border:none;padding:11px 12px;border-radius:3px;font-size:11px;letter-spacing:1.5px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 0 #6f1f19;}
+.quick-btn:hover{background:var(--rust-bright);}
+.sidebar-spacer{flex:1;}
+.sre-card{background:var(--paper);color:var(--paper-text);padding:12px 12px 14px;border-radius:2px;transform:rotate(-1deg);box-shadow:0 3px 8px rgba(0,0,0,.35);font-size:10px;line-height:1.7;}
+.sre-card .fp{font-size:22px;display:block;text-align:right;opacity:.5;margin-top:2px;}
+
+.main{flex:1;min-width:0;padding:22px 22px 40px;display:flex;flex-direction:column;gap:18px;}
+.right{width:340px;flex:0 0 340px;padding:22px 22px 40px 0;display:flex;flex-direction:column;gap:18px;}
+
+.paper{background:var(--paper);color:var(--paper-text);border-radius:2px;padding:26px 30px;position:relative;box-shadow:0 10px 24px rgba(0,0,0,.45);}
+.pin{position:absolute;top:-10px;left:22px;width:16px;height:16px;border-radius:50%;background:radial-gradient(circle at 35% 30%, #e0574a, #8f241b);box-shadow:0 3px 4px rgba(0,0,0,.5);}
+.polaroid{position:absolute;top:-18px;right:-10px;width:150px;background:#f4f0e4;padding:8px 8px 24px;border-radius:2px;box-shadow:0 8px 16px rgba(0,0,0,.5);transform:rotate(5deg);}
+.polaroid .shot{width:100%;height:100px;background:linear-gradient(135deg,#1a1a1e,#2c2c31);border-radius:1px;}
+.polaroid .cap{font-family:var(--font-display);font-size:9px;color:var(--paper-text-soft);text-align:center;margin-top:6px;line-height:1.4;}
+.clip{position:absolute;top:-14px;right:26px;font-size:34px;color:#8a8272;transform:rotate(12deg);opacity:.7;}
+.stamp{position:absolute;top:22px;right:26px;border:2px solid var(--rust);color:var(--rust);font-family:var(--font-display);font-size:12px;letter-spacing:2px;padding:6px 10px;transform:rotate(8deg);opacity:.55;border-radius:3px;}
+.stamp.moss{border-color:var(--moss);color:var(--moss);}
+.case-title-block .kicker{font-size:10px;letter-spacing:3px;color:var(--paper-text-soft);margin-bottom:6px;}
+.case-title-block h1{font-family:var(--font-display);font-size:28px;margin:0 0 14px;letter-spacing:.5px;}
+.meta-row{display:flex;gap:26px;font-size:11px;letter-spacing:.5px;margin-bottom:16px;color:var(--paper-text-soft);border-bottom:1px dashed var(--paper-line);padding-bottom:14px;flex-wrap:wrap;}
+.meta-row b{color:var(--paper-text);}
+.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--moss);margin-right:5px;}
+.exec h4{font-size:11px;letter-spacing:3px;color:var(--paper-text-soft);margin:0 0 8px;}
+.exec p{font-size:13px;line-height:1.75;margin:0;}
+.hl{color:var(--rust);font-weight:700;}
+
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+.stat-card{background:var(--panel);border:1px solid var(--panel-border);border-radius:3px;padding:14px 16px;}
+.stat-card .lbl{font-size:9.5px;letter-spacing:2px;color:var(--text-dim);display:flex;align-items:center;gap:6px;margin-bottom:10px;}
+.stat-card .val{font-size:24px;font-weight:700;color:var(--text-hi);display:flex;align-items:baseline;gap:6px;}
+.stat-card .sub{font-size:10px;color:var(--text-dim);margin-top:6px;}
+.stat-card .badge-hi{color:var(--moss);font-size:10px;letter-spacing:1px;margin-top:6px;font-weight:700;}
+.led{width:7px;height:7px;border-radius:50%;display:inline-block;animation:ledpulse 1.6s ease-in-out infinite;}
+.led-green{background:#5fbf72;box-shadow:0 0 6px #5fbf72;}
+.led-yellow{background:#d9a441;box-shadow:0 0 6px #d9a441;}
+.led-red{background:#c94a3d;box-shadow:0 0 6px #c94a3d;}
+@keyframes ledpulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+.dark-card{background:var(--panel);border:1px solid var(--panel-border);border-radius:3px;padding:18px 20px 14px;}
+.dark-card h3{font-size:11px;letter-spacing:3px;color:var(--text-mid);margin:0 0 16px;display:flex;justify-content:space-between;align-items:center;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+
+.tl{position:relative;padding-left:22px;}
+.tl:before{content:'';position:absolute;left:5px;top:4px;bottom:22px;width:1px;background:var(--panel-border-soft);}
+.tl-item{position:relative;padding-bottom:20px;}
+.tl-item:last-child{padding-bottom:10px;}
+.tl-dot{position:absolute;left:-22px;top:2px;width:10px;height:10px;border-radius:50%;background:var(--rust-bright);border:2px solid var(--ink-black);}
+.tl-item.done .tl-dot{background:var(--moss);}
+.tl-time{font-size:10px;color:var(--brass);letter-spacing:1px;margin-bottom:2px;}
+.tl-title{font-size:12.5px;color:var(--text-hi);margin-bottom:2px;font-weight:600;}
+.tl-sub{font-size:10.5px;color:var(--text-dim);}
+.tl-tag{position:absolute;right:0;top:0;font-family:var(--font-display);font-size:9.5px;color:var(--rust-bright);opacity:.7;transform:rotate(-3deg);}
+.acronym-full{
+  text-align:center;
+  font-size:12px;
+  letter-spacing:0.5px;
+  color:var(--text-mid);
+  margin-top:6px;
+  line-height:1.4;
+  white-space:nowrap;
+}
+.acronym-full b{color:var(--brass);font-weight:700;font-size:13px;}
+.acronym-full b{color:var(--brass);font-weight:700;}
+.rc-graph{display:flex;flex-direction:column;align-items:center;gap:0;padding:6px 0 12px;}
+.rc-node{border:1px solid var(--panel-border);background:#121215;border-radius:3px;padding:9px 14px;font-size:11px;text-align:center;min-width:190px;}
+.rc-node .t{color:var(--text-hi);font-weight:700;font-size:11.5px;}
+.rc-node .s{color:var(--text-dim);font-size:10px;margin-top:2px;}
+.rc-node.hi{border-color:rgba(168,56,47,.5);}
+.rc-arrow{color:var(--text-dim);font-size:14px;margin:4px 0;}
+.link-btn{width:100%;text-align:center;background:none;border:1px dashed var(--panel-border);color:var(--text-mid);font-size:10px;letter-spacing:2px;padding:9px;border-radius:3px;margin-top:14px;}
+.link-btn:hover{border-color:var(--brass);color:var(--brass);}
+
+.rcard{background:var(--paper);color:var(--paper-text);border-radius:2px;padding:18px 20px;box-shadow:0 8px 18px rgba(0,0,0,.35);position:relative;}
+.rcard h3{font-family:var(--font-display);font-size:15px;color:var(--rust);margin:0 0 4px;letter-spacing:.5px;}
+.rcard h4{font-size:10px;letter-spacing:2px;color:var(--paper-text-soft);margin:14px 0 8px;}
+.rcard .imp-row{display:flex;justify-content:space-between;font-size:11.5px;padding:6px 0;border-bottom:1px dashed var(--paper-line);}
+.rcard .imp-row:last-child{border-bottom:none;}
+.sev-pill{background:var(--rust);color:var(--paper);font-size:9.5px;padding:2px 7px;border-radius:2px;letter-spacing:1px;}
+
+.dark-list{background:var(--panel);border:1px solid var(--panel-border);border-radius:3px;padding:16px 18px;}
+.dark-list h3{font-size:11px;letter-spacing:3px;color:var(--text-mid);margin:0 0 12px;display:flex;justify-content:space-between;}
+.rec-item{display:flex;gap:9px;align-items:flex-start;font-size:12px;padding:7px 0;color:var(--text-hi);border-bottom:1px solid var(--panel-border-soft);}
+.rec-item:last-child{border-bottom:none;}
+.rec-item svg{flex:0 0 14px;margin-top:2px;color:var(--moss);}
+.rec-item .pr{font-size:9px;border:1px solid var(--brass-dim);color:var(--brass);border-radius:2px;padding:1px 5px;margin-left:auto;flex:0 0 auto;}
+
+.sim-item{padding:10px 0;border-bottom:1px solid var(--panel-border-soft);cursor:pointer;}
+.sim-item:hover .sim-top span:first-child{text-decoration:underline;}
+.sim-item:last-child{border-bottom:none;}
+.sim-top{display:flex;justify-content:space-between;font-size:11.5px;color:var(--brass);font-weight:700;margin-bottom:3px;}
+.sim-date{color:var(--text-dim);font-weight:400;font-size:10px;}
+.sim-desc{font-size:10.5px;color:var(--text-mid);margin-bottom:6px;}
+.sim-bottom{display:flex;justify-content:space-between;align-items:center;}
+.sev-pill-outline{border:1px solid var(--rust-bright);color:var(--rust-bright);font-size:9px;padding:1px 6px;border-radius:2px;}
+.match{color:var(--moss);font-size:10px;font-weight:700;}
+
+.field-label{font-size:10px;letter-spacing:2px;color:var(--text-dim);margin-bottom:6px;display:block;}
+.title-input{width:100%;background:var(--panel);border:1px solid var(--panel-border);color:var(--text-hi);padding:12px 14px;border-radius:3px;font-size:13px;margin-bottom:16px;}
+.title-input:focus{outline:none;border-color:var(--brass);}
+.upload-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
+.upload-slot{border:1px solid var(--panel-border);border-radius:4px;background:var(--panel);padding:14px 16px;}
+.upload-slot.filled{border-color:rgba(79,122,86,.5);}
+.upload-slot .slot-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:10.5px;letter-spacing:1.5px;color:var(--text-mid);}
+.upload-slot.filled .slot-head{color:var(--moss);}
+.upload-slot textarea{width:100%;background:#121215;border:1px solid var(--panel-border-soft);color:var(--text-hi);font-size:10.5px;padding:10px;border-radius:3px;resize:vertical;min-height:90px;line-height:1.5;}
+.upload-slot textarea:focus{outline:none;border-color:var(--brass-dim);}
+.sample-btn{background:none;border:1px dashed var(--brass-dim);color:var(--brass);font-size:9px;letter-spacing:1px;padding:4px 8px;border-radius:3px;}
+.sample-btn:hover{background:rgba(185,151,91,.12);}
+.run-btn{background:var(--rust);color:var(--paper);border:none;padding:14px 20px;border-radius:3px;font-size:12px;letter-spacing:2px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 3px 0 #6f1f19;}
+.run-btn:disabled{background:#3a3a3f;color:var(--text-dim);box-shadow:none;cursor:not-allowed;}
+.run-btn:hover:not(:disabled){background:var(--rust-bright);}
+.err-box{background:#3a1c19;border:1px solid var(--rust);color:#f3c9c4;padding:12px 16px;border-radius:3px;font-size:11.5px;line-height:1.6;}
+
+.pipeline{display:flex;flex-direction:column;gap:10px;}
+.agent-row{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--panel-border);border-radius:3px;padding:14px 16px;}
+.agent-row.active{border-color:var(--brass);box-shadow:0 0 0 1px rgba(185,151,91,.25);}
+.agent-row.done{border-color:rgba(79,122,86,.5);}
+.agent-num{width:26px;height:26px;border-radius:50%;border:1px solid var(--panel-border);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-dim);flex:0 0 26px;}
+.agent-row.active .agent-num{border-color:var(--brass);color:var(--brass);}
+.agent-row.done .agent-num{border-color:var(--moss);color:var(--moss);background:rgba(79,122,86,.12);}
+.agent-body{flex:1;}
+.agent-name{font-size:12.5px;font-weight:700;color:var(--text-hi);}
+.agent-job{font-size:10.5px;color:var(--text-dim);margin-top:2px;}
+.agent-status{font-size:10px;letter-spacing:1.5px;flex:0 0 auto;display:flex;align-items:center;}
+.agent-status.wait{color:var(--text-dim);}
+.agent-status.run{color:var(--brass);}
+.agent-status.ok{color:var(--moss);}
+.spin{display:inline-block;width:11px;height:11px;border:2px solid var(--brass-dim);border-top-color:var(--brass);border-radius:50%;animation:sp .8s linear infinite;margin-right:6px;}
+@keyframes sp{to{transform:rotate(360deg);}}
+
+.itable{width:100%;border-collapse:collapse;font-size:11.5px;}
+.itable th{text-align:left;font-size:9.5px;letter-spacing:2px;color:var(--text-dim);padding:8px 10px;border-bottom:1px solid var(--panel-border);}
+.itable td{padding:11px 10px;border-bottom:1px solid var(--panel-border-soft);color:var(--text-hi);}
+.itable tr.rowlink{cursor:pointer;}
+.itable tr.rowlink:hover td{background:#1f1f24;}
+.status-chip{font-size:9.5px;padding:2px 8px;border-radius:2px;letter-spacing:1px;border:1px solid var(--panel-border);color:var(--text-mid);}
+.status-chip.generated{border-color:var(--moss);color:var(--moss);}
+.status-chip.ingested{border-color:var(--brass-dim);color:var(--brass);}
+.backlink{background:none;border:none;color:var(--brass);font-size:11px;letter-spacing:1px;padding:0;margin-bottom:4px;}
+.backlink:hover{text-decoration:underline;}
+
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:60px 20px;color:var(--text-dim);text-align:center;}
+.empty-state .stamp-big{border:3px solid var(--brass-dim);color:var(--brass);font-family:var(--font-display);font-size:18px;letter-spacing:3px;padding:14px 24px;transform:rotate(-4deg);opacity:.8;}
+
+.tabs{display:flex;gap:4px;margin-bottom:14px;}
+.tab-btn{background:none;border:1px solid var(--panel-border);color:var(--text-mid);font-size:10.5px;letter-spacing:1.5px;padding:8px 14px;border-radius:3px;}
+.tab-btn.active{border-color:var(--brass);color:var(--brass);background:rgba(185,151,91,.08);}
+.artifact-block{background:#121215;border:1px solid var(--panel-border-soft);border-radius:3px;padding:12px 14px;margin-bottom:10px;}
+.artifact-block .a-head{font-size:10px;letter-spacing:1.5px;color:var(--brass);margin-bottom:8px;}
+.artifact-block pre{white-space:pre-wrap;word-break:break-word;font-size:10.5px;color:var(--text-mid);margin:0;line-height:1.6;max-height:220px;overflow:auto;}
+
+.chart-card{background:var(--panel);border:1px solid var(--panel-border);border-radius:3px;padding:18px 20px;}
+.chart-card h3{font-size:11px;letter-spacing:3px;color:var(--text-mid);margin:0 0 14px;}
+.chart-wrap{position:relative;height:220px;}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+.heatmap{display:flex;gap:3px;flex-wrap:wrap;}
+.heat-col{display:flex;flex-direction:column;gap:3px;}
+.heat-cell{width:12px;height:12px;border-radius:2px;background:#1f1f24;border:1px solid var(--panel-border-soft);}
+.heat-legend{display:flex;align-items:center;gap:6px;font-size:9.5px;color:var(--text-dim);margin-top:10px;}
+
+.placeholder-page{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;color:var(--text-dim);}
+.placeholder-page .stamp-big{border:3px solid var(--rust);color:var(--rust);font-family:var(--font-display);font-size:22px;letter-spacing:4px;padding:16px 28px;transform:rotate(-6deg);opacity:.7;}
+
+@media (max-width:1100px){.right{display:none;}.stat-row{grid-template-columns:repeat(2,1fr);}.two-col{grid-template-columns:1fr;}.upload-grid{grid-template-columns:1fr;}}
+@media (max-width:760px){.sidebar{display:none;}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const {useState, useEffect, useRef, useCallback} = React;
+
+const DEFAULT_BASE = (window.location.protocol === "file:") ? "http://localhost:8000" : "";
+
+async function apiCall(base, path, opts) {
+  const res = await fetch(base + path, opts);
+  if (!res.ok) {
+    let msg = res.statusText;
+    try { const j = await res.json(); msg = j.detail || JSON.stringify(j); } catch(e){}
+    throw new Error(msg || ("Request failed: " + res.status));
+  }
+  return res.json();
+}
+
+const Icon = ({d, size=15}) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <path d={d}/>
+  </svg>
+);
+const ICONS = {
+  home:"M3 11.5 12 4l9 7.5M5 10v9h5v-6h4v6h5v-9",
+  search:"M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM21 21l-4.3-4.3",
+  plus:"M12 5v14M5 12h14",
+  vault:"M4 4h16v16H4z M9 9h6v6H9z M12 4v5 M12 15v5 M4 12h5 M15 12h5",
+  graph:"M5 19V5 M5 19h14 M8 15l3-4 3 2 4-6",
+  doc:"M6 3h9l4 4v14H6z M15 3v4h4",
+  chart:"M4 20V10 M11 20V4 M18 20v-7",
+  book:"M4 5c3-2 6-2 8 0v14c-2-2-5-2-8 0zM20 5c-3-2-6-2-8 0v14c2-2 5-2 8 0z",
+  bell:"M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6zM10 20a2 2 0 0 0 4 0",
+  menu:"M4 6h16M4 12h16M4 18h16",
+  refresh:"M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5",
+  check:"M20 6 9 17l-5-5",
+  clock:"M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7v5l3 3",
+  users:"M17 20v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM23 20v-1a4 4 0 0 0-3-3.87M16 4.13a4 4 0 0 1 0 7.75",
+  grid:"M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
+  fingerprint:"M12 3a9 9 0 0 0-9 9c0 3 1 5 2 6M20.5 15c.5-1.5.5-2 .5-3a9 9 0 0 0-13-8M8 20a10 10 0 0 1-1.5-3M12 6.5A5.5 5.5 0 0 0 6.5 12c0 2 .5 3 1 4M12 8.5a3.5 3.5 0 0 1 3.5 3.5c0 3-1 5-2.5 7M12 12v.5c0 3-.5 5-2 7",
+  upload:"M12 16V4M7 9l5-5 5 5M4 20h16",
+  flash:"M13 2 3 14h7l-1 8 11-14h-7l1-6z",
+};
+const Ico = (name, size, extraStyle={}) => <span style={{display:'inline-flex',...extraStyle}}><Icon d={ICONS[name]} size={size}/></span>;
+
+const AGENTS = [
+  {name:"Timeline Builder", job:"Evidence-based chronology — no guessing about order"},
+  {name:"Root Cause Investigator", job:"Trigger vs. underlying cause, with a confidence score"},
+  {name:"Impact Analyzer", job:"Services, users and duration affected"},
+  {name:"Remediation Planner", job:"Actions taken + owner-assignable next steps"},
+  {name:"Quality Reviewer", job:"Checks every claim against evidence, scores the report"},
+];
+const NAV = [
+  {key:"dashboard", label:"DASHBOARD", icon:"home"},
+  {key:"incidents", label:"INCIDENTS", icon:"search"},
+  {key:"new", label:"NEW INVESTIGATION", icon:"plus"},
+ {key:"demo", label:"CASE LIBRARY", icon:"flash"},
+  {key:"vault", label:"EVIDENCE VAULT", icon:"vault"},
+  {key:"graph", label:"KNOWLEDGE GRAPH", icon:"graph"},
+  {key:"reports", label:"REPORTS", icon:"doc"},
+  {key:"analytics", label:"ANALYTICS", icon:"chart"},
+  {key:"runbooks", label:"RUNBOOKS", icon:"book"},
+];
+const ARTIFACT_META = {
+  alert_log: {label:"Alert Logs", placeholder:"Paste PagerDuty / Datadog alert lines..."},
+  deploy_record: {label:"Deployment Records", placeholder:"Paste the deploy log / change summary..."},
+  oncall_note: {label:"On-call Notes", placeholder:"Paste the on-call engineer's notes..."},
+  slack: {label:"Slack Thread", placeholder:"Paste the #incident Slack thread..."},
+};
+const DEMO_INCIDENTS = [
+  {
+    id:"DEMO-01", title:"Checkout Service Outage — DB Connection Leak",
+    report:{
+      title:"Checkout Service Outage — DB Connection Leak",
+      timeline:[
+        {time:"10:05 AM", event:"Deployment v2.14.3 started", source:"deploy_record"},
+        {time:"10:07 AM", event:"Checkout API error rate rose from 2% to 45%", source:"alert_log"},
+        {time:"10:09 AM", event:"Active DB connections climbed from 120 to 950", source:"alert_log"},
+        {time:"10:12 AM", event:"PagerDuty alert fired for high error rate", source:"alert_log"},
+        {time:"10:16 AM", event:"On-call rolled back to v2.14.2", source:"oncall_note"},
+        {time:"10:18 AM", event:"Error rate returned to normal", source:"slack"}
+      ],
+      root_cause:{trigger:"Deploy v2.14.3 changed DB pool config", confidence:0.94, reasoning:"A connection leak introduced in v2.14.3 exhausted the PostgreSQL connection pool, causing checkout timeouts."},
+      impact:{severity:"SEV-1", duration_minutes:13, user_impact:"~12,842 users (12.7%)", services_affected:["Checkout","Payment","API"]},
+      quality_review:{completeness_score:0.96, consistency_score:0.93, flags:[]},
+      preventive_measures:[
+        {action:"Increase DB connection pool limits", priority:"P1"},
+        {action:"Add connection leak detection to CI", priority:"P1"},
+        {action:"Implement circuit breaker on checkout→DB calls", priority:"P2"},
+        {action:"Add load testing for checkout flow before release", priority:"P2"}
+      ],
+      resolution:"Rolled back to v2.14.2 at 10:16 AM; error rate normalized within 2 minutes."
+    }
+  },
+  {
+    id:"DEMO-02", title:"Recommendation Service Memory Leak",
+    report:{
+      title:"Recommendation Service Memory Leak",
+      timeline:[
+        {time:"02:14 AM", event:"Memory usage begins climbing steadily", source:"alert_log"},
+        {time:"03:40 AM", event:"Pod restarts triggered by OOMKiller", source:"alert_log"},
+        {time:"04:05 AM", event:"Recommendation latency p99 exceeds 8s", source:"alert_log"},
+        {time:"04:20 AM", event:"On-call identifies unbounded in-memory cache", source:"oncall_note"},
+        {time:"04:35 AM", event:"Manual pod restart + cache TTL hotfix deployed", source:"deploy_record"}
+      ],
+      root_cause:{trigger:"Unbounded in-memory LRU cache introduced last sprint", confidence:0.88, reasoning:"A caching layer added without a max-size bound grew unbounded under sustained traffic, exhausting pod memory."},
+      impact:{severity:"SEV-2", duration_minutes:81, user_impact:"Degraded recommendations for ~40k users", services_affected:["Recommendations","Homepage"]},
+      quality_review:{completeness_score:0.9, consistency_score:0.91, flags:["Root cause partially inferred from code diff, not directly observed in logs"]},
+      preventive_measures:[
+        {action:"Add max-size bound to recommendation cache", priority:"P1"},
+        {action:"Add memory-usage alerting at 70% threshold", priority:"P1"},
+        {action:"Add automated load test for cache growth", priority:"P3"}
+      ],
+      resolution:"Hotfix deployed capping cache size; pods stabilized within 15 minutes."
+    }
+  },
+  {
+    id:"DEMO-03", title:"Auth Outage — DNS Misconfiguration",
+    report:{
+      title:"Auth Outage — DNS Misconfiguration",
+      timeline:[
+        {time:"6:58 PM", event:"DNS record for auth.internal updated during migration", source:"deploy_record"},
+        {time:"7:01 PM", event:"Login failures spike to 100%", source:"alert_log"},
+        {time:"7:02 PM", event:"Incident declared, on-call paged", source:"alert_log"},
+        {time:"7:10 PM", event:"DNS misconfiguration identified by network team", source:"slack"},
+        {time:"7:16 PM", event:"DNS record reverted", source:"deploy_record"},
+        {time:"7:19 PM", event:"Login success rate recovers", source:"alert_log"}
+      ],
+      root_cause:{trigger:"DNS cutover during infra migration pointed auth.internal to a decommissioned host", confidence:0.97, reasoning:"A routine DNS migration change was applied without a canary check, immediately breaking all authentication traffic."},
+      impact:{severity:"SEV-1", duration_minutes:21, user_impact:"100% of active users unable to log in", services_affected:["Auth","Login","Mobile API"]},
+      quality_review:{completeness_score:0.97, consistency_score:0.96, flags:[]},
+      preventive_measures:[
+        {action:"Require canary validation before DNS cutovers", priority:"P1"},
+        {action:"Add synthetic login check to deployment pipeline", priority:"P1"},
+        {action:"Document DNS migration runbook with rollback steps", priority:"P2"}
+      ],
+      resolution:"DNS record reverted manually; full recovery within 3 minutes of the fix."
+    }
+  },
+  {
+    id:"DEMO-04", title:"Product Catalog Cache Stampede",
+    report:{
+      title:"Product Catalog Cache Stampede",
+      timeline:[
+        {time:"12:00 PM", event:"Scheduled cache flush executes as designed", source:"deploy_record"},
+        {time:"12:00 PM", event:"All catalog requests simultaneously miss cache", source:"alert_log"},
+        {time:"12:01 PM", event:"Database CPU spikes to 100%", source:"alert_log"},
+        {time:"12:03 PM", event:"Catalog page latency exceeds 15s", source:"alert_log"},
+        {time:"12:11 PM", event:"Staggered cache warm-up script executed", source:"oncall_note"},
+        {time:"12:15 PM", event:"Latency returns to baseline", source:"alert_log"}
+      ],
+      root_cause:{trigger:"Scheduled full cache flush with no staggered warm-up", confidence:0.91, reasoning:"A daily cache-flush job cleared the entire catalog cache at once, causing every concurrent request to hit the database simultaneously (a stampede)."},
+      impact:{severity:"SEV-2", duration_minutes:15, user_impact:"Slow page loads for ~25k concurrent users", services_affected:["Catalog","Search"]},
+      quality_review:{completeness_score:0.93, consistency_score:0.9, flags:[]},
+      preventive_measures:[
+        {action:"Replace full flush with rolling/staggered cache invalidation", priority:"P1"},
+        {action:"Add request coalescing for cache misses", priority:"P1"},
+        {action:"Alert on DB CPU > 85% for 30s", priority:"P2"}
+      ],
+      resolution:"Manual staggered warm-up resolved the stampede within 4 minutes."
+    }
+  },
+  {
+    id:"DEMO-05", title:"Payment Gateway Third-Party Outage",
+    report:{
+      title:"Payment Gateway Third-Party Outage",
+      timeline:[
+        {time:"9:44 AM", event:"Payment provider status page reports degraded API", source:"slack"},
+        {time:"9:46 AM", event:"Checkout payment failures rise to 60%", source:"alert_log"},
+        {time:"9:50 AM", event:"On-call confirms no internal deploys occurred", source:"oncall_note"},
+        {time:"10:15 AM", event:"Provider posts incident update, ETA 30 min", source:"slack"},
+        {time:"10:40 AM", event:"Provider resolves incident", source:"slack"},
+        {time:"10:42 AM", event:"Payment success rate normalizes", source:"alert_log"}
+      ],
+      root_cause:{trigger:"Upstream payment provider outage (external, third-party)", confidence:0.85, reasoning:"Failures were isolated to the payment step and correlated exactly with the provider's public status page incident window; no internal change coincided with the failure onset."},
+      impact:{severity:"SEV-1", duration_minutes:58, user_impact:"~60% of checkout attempts failed payment step", services_affected:["Payment","Checkout"]},
+      quality_review:{completeness_score:0.85, consistency_score:0.88, flags:["Root cause depends on third-party status page, not directly verifiable from internal logs alone"]},
+      preventive_measures:[
+        {action:"Add secondary payment provider failover", priority:"P1"},
+        {action:"Surface provider status page in on-call dashboard", priority:"P2"},
+        {action:"Add customer-facing banner for known provider outages", priority:"P3"}
+      ],
+      resolution:"No internal fix possible; monitored until provider resolved their outage."
+    }
+  },
+  {
+    id:"DEMO-06", title:"Feature Flag Rollout Crash",
+    report:{
+      title:"Feature Flag Rollout Crash",
+      timeline:[
+        {time:"3:20 PM", event:"New checkout-UI feature flag enabled for 10% of users", source:"deploy_record"},
+        {time:"3:22 PM", event:"Client-side crash reports spike for flagged cohort", source:"alert_log"},
+        {time:"3:25 PM", event:"On-call identifies null-reference in new component", source:"oncall_note"},
+        {time:"3:28 PM", event:"Feature flag disabled", source:"deploy_record"},
+        {time:"3:30 PM", event:"Crash rate returns to baseline", source:"alert_log"}
+      ],
+      root_cause:{trigger:"New UI component shipped behind flag with an unhandled null case", confidence:0.9, reasoning:"The new checkout summary component assumed a field would always be present; for users without saved addresses, this caused a null-reference crash."},
+      impact:{severity:"SEV-3", duration_minutes:10, user_impact:"~10% cohort (roughly 3,000 users) experienced crashes", services_affected:["Web Checkout UI"]},
+      quality_review:{completeness_score:0.92, consistency_score:0.94, flags:[]},
+      preventive_measures:[
+        {action:"Add null-safety check for optional address field", priority:"P1"},
+        {action:"Require crash-rate monitoring gate before flag ramp-up", priority:"P2"},
+        {action:"Expand QA coverage for users without saved addresses", priority:"P3"}
+      ],
+      resolution:"Feature flag disabled within 8 minutes of rollout; no rollback needed."
+    }
+  },
+  {
+    id:"DEMO-07", title:"Logging Service Disk Exhaustion",
+    report:{
+      title:"Logging Service Disk Exhaustion",
+      timeline:[
+        {time:"11:00 PM", event:"Log volume increases 4x due to a noisy new service", source:"alert_log"},
+        {time:"1:30 AM", event:"Disk usage on log ingestion node reaches 92%", source:"alert_log"},
+        {time:"2:10 AM", event:"Disk reaches 100%, log ingestion halts", source:"alert_log"},
+        {time:"2:14 AM", event:"Downstream alerting delayed due to missing logs", source:"oncall_note"},
+        {time:"2:40 AM", event:"On-call clears old log segments, ingestion resumes", source:"oncall_note"}
+      ],
+      root_cause:{trigger:"A newly deployed service logged at debug level in production", confidence:0.89, reasoning:"A misconfigured log level on a new service produced 4x normal volume, filling disk faster than the retention job could clear it."},
+      impact:{severity:"SEV-2", duration_minutes:150, user_impact:"No direct user impact; delayed incident detection for other services", services_affected:["Logging","Observability"]},
+      quality_review:{completeness_score:0.87, consistency_score:0.89, flags:["Detection was delayed — timestamps reconstructed partly from disk metrics, not real-time alerts"]},
+      preventive_measures:[
+        {action:"Set default log level to info in production configs", priority:"P1"},
+        {action:"Add disk-usage alert at 80% for log nodes", priority:"P1"},
+        {action:"Increase log retention job frequency", priority:"P3"}
+      ],
+      resolution:"Old segments manually cleared; ingestion resumed and log level corrected."
+    }
+  },
+  {
+    id:"DEMO-08", title:"API Outage — Expired TLS Certificate",
+    report:{
+      title:"API Outage — Expired TLS Certificate",
+      timeline:[
+        {time:"12:00 AM", event:"TLS certificate for api.company.com expires", source:"deploy_record"},
+        {time:"12:00 AM", event:"All HTTPS API requests begin failing handshake", source:"alert_log"},
+        {time:"12:03 AM", event:"On-call paged for total API downtime", source:"alert_log"},
+        {time:"12:20 AM", event:"Emergency certificate reissued and deployed", source:"oncall_note"},
+        {time:"12:24 AM", event:"API traffic recovers fully", source:"alert_log"}
+      ],
+      root_cause:{trigger:"Certificate auto-renewal job silently failed 30 days prior", confidence:0.96, reasoning:"The automated renewal cron job had been failing silently for a month with no alerting configured on renewal failures, so the cert expired unnoticed."},
+      impact:{severity:"SEV-1", duration_minutes:24, user_impact:"100% of API traffic — all integrations down", services_affected:["Public API","Partner Integrations"]},
+      quality_review:{completeness_score:0.95, consistency_score:0.95, flags:[]},
+      preventive_measures:[
+        {action:"Add alerting on cert-renewal job failure", priority:"P1"},
+        {action:"Add 14-day-before-expiry certificate monitor", priority:"P1"},
+        {action:"Automate cert rotation with health-check verification", priority:"P2"}
+      ],
+      resolution:"Certificate manually reissued and deployed within 20 minutes."
+    }
+  }
+];
+
+function TopBar({connected, onRefresh, incidentCount}){
+  return (
+    <div className="topbar-v2">
+      <div className="neon-title">FOREN<span>SIX</span></div>
+      <div className="neon-sub">
+        F · O · R · E · N · S · I · X — INCIDENT POSTMORTEM GENERATOR
+      </div>
+      <div className="acronym-full">
+        <b>F</b>orensic <b>O</b>bservability &amp; <b>R</b>oot-cause <b>E</b>ngine for <b>N</b>etwork &amp; <b>S</b>ystem <b>I</b>ncident e<b>X</b>planation
+      </div>
+      <div className="topbar-v2-row" style={{marginTop:4}}>
+        <div className="case-tag">{incidentCount} CASE{incidentCount===1?"":"S"} ON FILE</div>
+        <div className="tb-spacer"/>
+        <div className="tb-time"><b>{connected ? "LIVE DATABASE" : "OFFLINE"}</b><br/>{new Date().toDateString()}</div>
+        <div className="tb-icons">
+          <button className="icon-btn" onClick={onRefresh} title="Refresh from database">{Ico("refresh",16)}</button>
+          <span className="bell">{Ico("bell",17)}<span className="dot">{incidentCount}</span></span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Sidebar({page,setPage}){
+  return (
+    <div className="sidebar">
+      <div>
+        <div className="side-label">CASE FILES</div>
+        <div className="nav-list">
+          {NAV.map(n => (
+            <button key={n.key} className={"nav-item"+(page===n.key?" active":"")} onClick={()=>setPage(n.key)}>
+              {Ico(n.icon,15)} {n.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <div className="side-label">QUICK ACTIONS</div>
+        <button className="quick-btn" onClick={()=>setPage("new")}>{Ico("plus",14)} START NEW INVESTIGATION</button>
+      </div>
+      <div className="sidebar-spacer"/>
+      <div className="sre-card">
+        SRE LOGGED IN AS<br/>
+        <b style={{fontSize:'12px'}}>ARJUN MEHTA</b><br/>
+        SRE TEAM
+        <span className="fp">{Ico("fingerprint",26)}</span>
+      </div>
+      <div style={{background:'var(--panel)',border:'1px solid var(--panel-border)',borderRadius:'3px',padding:'10px 12px',fontSize:'10px',color:'var(--text-mid)',letterSpacing:'0.5px'}}>
+        SYSTEM STATUS<br/>
+        <span style={{color:'var(--moss)',fontWeight:700}}>● ALL SYSTEMS OPERATIONAL</span>
+      </div>
+    </div>
+  );
+}
+
+function sevLabel(s){ return (s||"UNKNOWN").toString().toUpperCase(); }
+
+function ReportView({incidentId, title, status, report}){
+  if(!report){
+    return (
+      <div className="paper case-title-block">
+        <div className="pin"/>
+        <div className="stamp">UNSOLVED</div>
+        <div className="kicker">CASE TITLE:</div>
+        <h1>{(title||"Untitled Incident").toUpperCase()}</h1>
+        <div className="meta-row"><span>STATUS: <b>{status||"ingested"}</b></span><span>ID: <b>{incidentId}</b></span></div>
+        <div className="exec"><p>No postmortem has been generated for this incident yet. Open it from Incidents and click Generate, or run it from New Investigation.</p></div>
+      </div>
+    );
+  }
+  const timeline = report.timeline || [];
+  const rootCause = report.root_cause || {};
+  const impact = report.impact || {};
+  const quality = report.quality_review || {};
+  const measures = report.preventive_measures || [];
+
+  return (
+    <React.Fragment>
+      <div className="paper case-title-block">
+        <div className="pin"/>
+        <div className="clip">📎</div>
+        <div className="stamp">CASE FILE</div>
+        <div className="polaroid">
+          <div className="shot"/>
+          <div className="cap">Case Resolved<br/>{status==="generated" ? "postmortem generated" : status}</div>
+        </div>
+        <div className="kicker">CASE TITLE:</div>
+        <h1>{(report.title||title||"Untitled Incident").toUpperCase()}</h1>
+        <div className="meta-row">
+          <span><span className="status-dot"/>STATUS: <b>{status||"generated"}</b></span>
+          <span>SEVERITY: <b>{sevLabel(impact.severity)}</b></span>
+          <span>ID: <b>{incidentId}</b></span>
+        </div>
+        <div className="exec">
+          <h4>ROOT CAUSE</h4>
+          <p><span className="hl">Trigger:</span> {rootCause.trigger || "—"}</p>
+          <p style={{marginTop:8}}>{rootCause.reasoning || rootCause.root_cause || "No reasoning captured."}</p>
+        </div>
+      </div>
+
+      <div className="stat-row">
+        <div className="stat-card">
+          <div className="lbl"><span className="led led-green"/> {Ico("clock",12)} DURATION</div>
+          <div className="val">{impact.duration_minutes != null ? impact.duration_minutes+"m" : "—"}</div>
+          <div className="sub">estimated from evidence</div>
+        </div>
+        <div className="stat-card">
+          <div className="lbl"><span className="led led-yellow"/> {Ico("users",12)} USER IMPACT</div>
+          <div className="val" style={{fontSize:'15px'}}>{impact.user_impact || "—"}</div>
+        </div>
+        <div className="stat-card">
+          <div className="lbl"><span className="led led-red"/> {Ico("grid",12)} SERVICES AFFECTED</div>
+          <div className="val">{(impact.services_affected||[]).length}</div>
+          <div className="sub">{(impact.services_affected||[]).join(", ") || "—"}</div>
+        </div>
+        <div className="stat-card">
+          <div className="lbl"><span className={"led "+(rootCause.confidence>=0.9?"led-green":"led-yellow")}/> {Ico("fingerprint",12)} ROOT-CAUSE CONFIDENCE</div>
+          <div className="val">{rootCause.confidence != null ? Math.round(rootCause.confidence*100)+"%" : "—"}</div>
+          <div className="badge-hi">{quality.completeness_score != null ? Math.round(quality.completeness_score*100)+"% COMPLETE" : ""}</div>
+        </div>
+      </div>
+
+      <div className="two-col">
+        <div className="dark-card">
+          <h3>INCIDENT TIMELINE</h3>
+          {timeline.length === 0 ? <div style={{color:'var(--text-dim)',fontSize:'11px'}}>No timeline events returned.</div> : (
+            <div className="tl">
+              {timeline.map((it,i)=>(
+                <div className="tl-item done" key={i}>
+                  <span className="tl-dot"/>
+                  {it.source && <span className="tl-tag">📁 {it.source}</span>}
+                  <div className="tl-time">{it.time}</div>
+                  <div className="tl-title">{it.event}</div>
+                  {it.evidence && <div className="tl-sub">{it.evidence}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="dark-card">
+          <h3>QUALITY REVIEW</h3>
+          <div className="rc-graph">
+            <div className="rc-node"><div className="t">Completeness</div><div className="s">{quality.completeness_score!=null ? Math.round(quality.completeness_score*100)+"%" : "—"}</div></div>
+            <div className="rc-arrow">↓</div>
+            <div className="rc-node"><div className="t">Consistency</div><div className="s">{quality.consistency_score!=null ? Math.round(quality.consistency_score*100)+"%" : "—"}</div></div>
+            {(quality.flags||[]).length > 0 && (<React.Fragment>
+              <div className="rc-arrow">↓</div>
+              <div className="rc-node hi"><div className="t">⚑ Flags</div><div className="s">{quality.flags.join("; ")}</div></div>
+            </React.Fragment>)}
+          </div>
+        </div>
+      </div>
+
+      <div className="dark-card">
+        <h3>RESOLUTION &amp; PREVENTIVE MEASURES</h3>
+        <p style={{fontSize:'12px',color:'var(--text-hi)',lineHeight:1.7,marginTop:0}}>{report.resolution || "—"}</p>
+        {measures.map((m,i)=>(
+          <div className="rec-item" key={i}>{Ico("check",13)} {m.action}<span className="pr">{m.priority}</span></div>
+        ))}
+      </div>
+    </React.Fragment>
+  );
+}
+
+function Dashboard({incidents, base, setPage, openIncident}){
+  const [report, setReport] = useState(null);
+  const [current, setCurrent] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const generated = incidents.filter(i=>i.status==="generated");
+  const latest = generated[0] || null;
+
+  useEffect(()=>{
+    if(!latest){ setReport(null); setCurrent(null); return; }
+    setLoading(true);
+    apiCall(base, `/api/incidents/${latest.id}/report`).then(r=>{
+      setReport(r.report_json ? JSON.parse(r.report_json) : r);
+      setCurrent(latest);
+    }).catch(e=>setError(e.message)).finally(()=>setLoading(false));
+  }, [latest && latest.id, base]);
+
+  const loadDemo = async () => {
+    setDemoLoading(true); setError(null);
+    try {
+      const sample = await apiCall(base, "/api/sample-data");
+      const artifacts = Object.entries(sample).map(([type, content]) => ({type, content}));
+      if (artifacts.length === 0) throw new Error("Backend has no sample_data files bundled.");
+      const created = await apiCall(base, "/api/incidents", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({title:"checkout-service 5xx spike (demo)", artifacts})
+      });
+      await apiCall(base, `/api/incidents/${created.incident_id}/generate`, {method:"POST"});
+      openIncident(created.incident_id, "incidents");
+    } catch(e){ setError(e.message); }
+    setDemoLoading(false);
+  };
+
+ if (incidents.length === 0) {
+    const previewCase = DEMO_INCIDENTS[0];
+    return (
+      <div className="main">
+        <div className="dark-card" style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
+          <div style={{flex:'1 1 260px'}}>
+            <h3 style={{margin:0}}>NO LIVE CASES YET</h3>
+            <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:4}}>Showing a recent case file below. Start a real investigation with your own logs, or browse the full case library.</div>
+          </div>
+          <button className="run-btn" onClick={()=>setPage("new")}>{Ico("plus",14)} NEW INVESTIGATION</button>
+          <button className="run-btn" style={{background:'var(--panel)',color:'var(--brass)',boxShadow:'none',border:'1px solid var(--brass-dim)'}} onClick={()=>setPage("demo")}>{Ico("flash",14)} VIEW CASE LIBRARY</button>
+          <button className="run-btn" style={{background:'var(--panel)',color:'var(--brass)',boxShadow:'none',border:'1px solid var(--brass-dim)'}} disabled={demoLoading} onClick={loadDemo}>
+            {demoLoading ? <React.Fragment><span className="spin"/> RUNNING…</React.Fragment> : "RUN LIVE SAMPLE CASE"}
+          </button>
+        </div>
+        {error && <div className="err-box">{error}</div>}
+        <ReportView incidentId={previewCase.id} title={previewCase.title} status="generated" report={previewCase.report}/>
+      </div>
+    );
+  }
+
+const previewCase = DEMO_INCIDENTS[0];
+  return (
+    <React.Fragment>
+      <div className="main">
+        {loading && <div className="dark-card">Loading latest case from database…</div>}
+        {!loading && current && <ReportView incidentId={current.id} title={current.title} status={current.status} report={report}/>}
+        {!loading && !current && (
+          <React.Fragment>
+            <div className="dark-card" style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
+              <div style={{flex:'1 1 260px'}}>
+                <h3 style={{margin:0}}>NO GENERATED REPORT YET</h3>
+                <div style={{fontSize:'11px',color:'var(--text-dim)',marginTop:4}}>Your latest incident is still ingested only. Showing a recent case file below in the meantime.</div>
+              </div>
+              <button className="run-btn" onClick={()=>setPage("demo")}>{Ico("flash",14)} VIEW CASE LIBRARY</button>
+            </div>
+            <ReportView incidentId={previewCase.id} title={previewCase.title} status="generated" report={previewCase.report}/>
+          </React.Fragment>
+        )}
+      </div>
+      <RightColumn incidents={incidents} current={current} report={report} openIncident={openIncident}/>
+    </React.Fragment>
+  );
+}
+
+function RightColumn({incidents, current, report, openIncident}){
+  const measures = (report && report.preventive_measures) || [];
+  const others = incidents.filter(i => !current || i.id !== current.id).slice(0,5);
+  const impact = (report && report.impact) || {};
+  return (
+    <div className="right">
+      <div className="rcard">
+        <h3>CASE SUMMARY</h3>
+        <h4>IMPACT</h4>
+        <div className="imp-row"><span>Services</span><b>{(impact.services_affected||[]).length || "—"}</b></div>
+        <div className="imp-row"><span>Users</span><b>{impact.user_impact || "—"}</b></div>
+        <div className="imp-row"><span>Duration</span><b>{impact.duration_minutes!=null ? impact.duration_minutes+"m" : "—"}</b></div>
+        <div className="imp-row"><span>Severity</span><span className="sev-pill">{sevLabel(impact.severity)}</span></div>
+      </div>
+      <div className="dark-list">
+        <h3>TOP RECOMMENDATIONS</h3>
+        {measures.length === 0 && <div style={{fontSize:'11px',color:'var(--text-dim)'}}>None yet for this case.</div>}
+        {measures.map((m,i)=>(<div className="rec-item" key={i}>{Ico("check",13)} {i+1}. {m.action}</div>))}
+      </div>
+      <div className="dark-list">
+        <h3>OTHER INCIDENTS ON FILE</h3>
+        {others.length===0 && <div style={{fontSize:'11px',color:'var(--text-dim)'}}>No other incidents yet.</div>}
+        {others.map(inc=>(
+          <div className="sim-item" key={inc.id} onClick={()=>openIncident(inc.id,"incidents")}>
+            <div className="sim-top"><span>{inc.id}</span><span className="sim-date">{new Date(inc.created_at*1000).toLocaleDateString()}</span></div>
+            <div className="sim-desc">{inc.title}</div>
+            <div className="sim-bottom"><span className={"status-chip "+inc.status}>{inc.status}</span></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NewInvestigation({base, onCreated}){
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState({alert_log:"", deploy_record:"", oncall_note:"", slack:""});
+  const [running, setRunning] = useState(false);
+  const [step, setStep] = useState(-1);
+  const [error, setError] = useState(null);
+  const [result, setResult] = useState(null);
+  const [incidentId, setIncidentId] = useState(null);
+  const paceRef = useRef(null);
+
+  const loadSample = async () => {
+    try {
+      const sample = await apiCall(base, "/api/sample-data");
+      setContent(prev => ({...prev, ...sample}));
+      if(!title) setTitle("checkout-service 5xx spike (INC-2291)");
+    } catch(e){ setError(e.message); }
+  };
+
+  const filledCount = Object.values(content).filter(v=>v.trim().length>0).length;
+
+  const run = async () => {
+    setError(null); setResult(null); setRunning(true); setStep(0);
+    paceRef.current = setInterval(()=> setStep(s => s < AGENTS.length-1 ? s+1 : s), 1800);
+    try {
+      const artifacts = Object.entries(content).filter(([,v])=>v.trim()).map(([type,c])=>({type, content:c}));
+      if (artifacts.length === 0) throw new Error("Add at least one artifact before running the investigation.");
+      const created = await apiCall(base, "/api/incidents", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({title: title || "Untitled incident", artifacts})
+      });
+      setIncidentId(created.incident_id);
+      const report = await apiCall(base, `/api/incidents/${created.incident_id}/generate`, {method:"POST"});
+      clearInterval(paceRef.current);
+      setStep(AGENTS.length);
+      setResult(report);
+      onCreated && onCreated();
+    } catch(e){
+      clearInterval(paceRef.current);
+      setError(e.message);
+      setStep(-1);
+    }
+    setRunning(false);
+  };
+
+  useEffect(()=>()=>clearInterval(paceRef.current), []);
+
+  const done = step >= AGENTS.length;
+
+  return (
+    <div className="main" style={{width:'100%'}}>
+      <div className="paper case-title-block">
+        <div className="pin"/>
+        <div className="kicker">NEW INVESTIGATION</div>
+        <h1>UPLOAD CASE EVIDENCE</h1>
+        <p style={{fontSize:'12px',color:'var(--paper-text-soft)',margin:'0 0 4px'}}>
+          These artifacts are sent to the real backend, chunked, embedded into a per-incident ChromaDB
+          collection, and read by the five agents. Everything below is written to the SQLite database.
+        </p>
+      </div>
+
+      <label className="field-label">INCIDENT TITLE</label>
+      <input className="title-input" value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. checkout-service 5xx spike" />
+
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <label className="field-label" style={{margin:0}}>ARTIFACTS ({filledCount}/4 attached)</label>
+        <button className="sample-btn" onClick={loadSample}>LOAD SAMPLE EVIDENCE</button>
+      </div>
+      <div className="upload-grid">
+        {Object.keys(ARTIFACT_META).map(key=>(
+          <div className={"upload-slot"+(content[key].trim()?" filled":"")} key={key}>
+            <div className="slot-head"><span>{ARTIFACT_META[key].label.toUpperCase()}</span><span>{content[key].trim() ? "✓ ATTACHED" : "EMPTY"}</span></div>
+            <textarea value={content[key]} placeholder={ARTIFACT_META[key].placeholder}
+              onChange={e=>setContent({...content,[key]:e.target.value})}/>
+          </div>
+        ))}
+      </div>
+
+      <button className="run-btn" style={{alignSelf:'flex-start'}} disabled={running} onClick={run}>
+        {running ? <React.Fragment><span className="spin"/> RUNNING PIPELINE…</React.Fragment> : (done ? "RE-RUN INVESTIGATION" : <React.Fragment>{Ico("upload",15)} RUN INVESTIGATION</React.Fragment>)}
+      </button>
+
+      {error && <div className="err-box">⚠ {error}</div>}
+
+      {step >= 0 && (
+        <div className="dark-card">
+          <h3>SEQUENTIAL AGENT PIPELINE {incidentId && <span style={{color:'var(--brass)',fontWeight:400}}>· {incidentId}</span>}</h3>
+          <div className="pipeline">
+            {AGENTS.map((a,i)=>{
+              const state = i<step ? "done" : (i===step ? "active" : "");
+              return (
+                <div className={"agent-row "+state} key={a.name}>
+                  <div className="agent-num">{i<step ? "✓" : i+1}</div>
+                  <div className="agent-body">
+                    <div className="agent-name">{a.name}</div>
+                    <div className="agent-job">{a.job}</div>
+                  </div>
+                  <div className={"agent-status "+(i<step?"ok":(i===step?"run":"wait"))}>
+                    {i<step ? "COMPLETE" : (i===step ? <React.Fragment><span className="spin"/>RUNNING</React.Fragment> : "QUEUED")}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {running && <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'10px'}}>Pipeline stages are paced for display while the backend runs the real, single /generate call (5 sequential Claude calls) — the report below is the actual response, not a simulation.</div>}
+        </div>
+      )}
+
+      {done && result && (
+        <ReportView incidentId={incidentId} title={result.title} status="generated" report={result}/>
+      )}
+    </div>
+  );
+}
+
+function IncidentDetail({base, id, defaultTab, onBack}){
+  const [detail, setDetail] = useState(null);
+  const [tab, setTab] = useState(defaultTab || "report");
+  const [error, setError] = useState(null);
+  const [generating, setGenerating] = useState(false);
+
+  const load = useCallback(()=>{
+    apiCall(base, `/api/incidents/${id}`).then(setDetail).catch(e=>setError(e.message));
+  }, [base, id]);
+
+  useEffect(load, [load]);
+
+  const generate = async () => {
+    setGenerating(true); setError(null);
+    try {
+      await apiCall(base, `/api/incidents/${id}/generate`, {method:"POST"});
+      load();
+    } catch(e){ setError(e.message); }
+    setGenerating(false);
+  };
+
+  if (!detail) return <div className="dark-card">Loading case file…</div>;
+  const report = detail.report ? (detail.report.report_json ? JSON.parse(detail.report.report_json) : detail.report) : null;
+
+  return (
+    <div className="main" style={{width:'100%'}}>
+      <button className="backlink" onClick={onBack}>← BACK</button>
+      <div className="tabs">
+        <button className={"tab-btn"+(tab==="report"?" active":"")} onClick={()=>setTab("report")}>REPORT</button>
+        <button className={"tab-btn"+(tab==="evidence"?" active":"")} onClick={()=>setTab("evidence")}>EVIDENCE ({(detail.artifacts||[]).length})</button>
+      </div>
+      {error && <div className="err-box">⚠ {error}</div>}
+
+      {tab==="report" && (
+        report ? <ReportView incidentId={id} title={detail.title} status={detail.status} report={report}/> : (
+          <div className="dark-card">
+            <h3>NO REPORT YET</h3>
+            <p style={{fontSize:'12px',color:'var(--text-mid)'}}>This incident has {(detail.artifacts||[]).length} artifact(s) but no postmortem has been generated.</p>
+            <button className="run-btn" disabled={generating} onClick={generate}>
+              {generating ? <React.Fragment><span className="spin"/> RUNNING 5-AGENT PIPELINE…</React.Fragment> : "GENERATE POSTMORTEM"}
+            </button>
+          </div>
+        )
+      )}
+
+      {tab==="evidence" && (
+        <div className="dark-card">
+          <h3>EVIDENCE VAULT — {id}</h3>
+          {(detail.artifacts||[]).length===0 && <div style={{color:'var(--text-dim)',fontSize:'11px'}}>No artifacts stored.</div>}
+          {(detail.artifacts||[]).map(a=>(
+            <div className="artifact-block" key={a.id}>
+              <div className="a-head">{(ARTIFACT_META[a.type]||{label:a.type}).label.toUpperCase()} · {new Date(a.created_at*1000).toLocaleString()}</div>
+              <pre>{a.content}</pre>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IncidentsList({base, incidents, focus, selected, setSelected}){
+  if (selected) {
+    return <IncidentDetail base={base} id={selected} defaultTab={focus==="vault"?"evidence":"report"} onBack={()=>setSelected(null)}/>;
+  }
+  return (
+    <div className="main" style={{width:'100%'}}>
+      <div className="dark-card">
+        <h3>{focus==="vault" ? "EVIDENCE VAULT" : "ALL INCIDENTS"} <span style={{color:'var(--text-dim)',fontWeight:400}}>{incidents.length} total</span></h3>
+        {incidents.length===0 ? (
+          <div className="empty-state" style={{padding:'30px 0'}}>
+            <div className="stamp-big">NO CASES YET</div>
+          </div>
+        ) : (
+          <table className="itable">
+            <thead><tr><th>ID</th><th>TITLE</th><th>STATUS</th><th>OPENED</th></tr></thead>
+            <tbody>
+              {incidents.map(inc=>(
+                <tr className="rowlink" key={inc.id} onClick={()=>setSelected(inc.id)}>
+                  <td style={{color:'var(--brass)'}}>{inc.id}</td>
+                  <td>{inc.title}</td>
+                  <td><span className={"status-chip "+inc.status}>{inc.status}</span></td>
+                  <td>{new Date(inc.created_at*1000).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DemoCases(){
+  const [index, setIndex] = useState(0);
+  const [autoPlay, setAutoPlay] = useState(false);
+  const timerRef = useRef(null);
+
+  useEffect(()=>{
+    if(autoPlay){
+      timerRef.current = setInterval(()=> setIndex(i => (i+1) % DEMO_INCIDENTS.length), 5000);
+    }
+    return ()=>clearInterval(timerRef.current);
+  }, [autoPlay]);
+
+  const current = DEMO_INCIDENTS[index];
+
+  return (
+    <div className="main" style={{width:'100%'}}>
+      <div className="dark-card" style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
+<h3 style={{margin:0}}>CASE LIBRARY <span style={{color:'var(--text-dim)',fontWeight:400}}>— resolved incident case files</span></h3>
+        <div style={{flex:1}}/>
+        <button className="sample-btn" onClick={()=>setIndex(i => (i-1+DEMO_INCIDENTS.length)%DEMO_INCIDENTS.length)}>← PREV</button>
+        <button className="sample-btn" onClick={()=>setIndex(i => (i+1)%DEMO_INCIDENTS.length)}>NEXT →</button>
+        <button className="sample-btn" onClick={()=>setAutoPlay(a=>!a)} style={autoPlay?{borderColor:'var(--moss)',color:'var(--moss)'}:{}}>
+          {autoPlay ? "⏸ AUTO-PLAYING" : "▶ AUTO-PLAY"}
+        </button>
+      </div>
+      <div className="dark-card" style={{padding:'10px 20px'}}>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+          {DEMO_INCIDENTS.map((d,i)=>(
+            <button key={d.id} className="tab-btn" style={i===index?{borderColor:'var(--brass)',color:'var(--brass)',background:'rgba(185,151,91,.08)'}:{}} onClick={()=>setIndex(i)}>
+              {d.id}
+            </button>
+          ))}
+        </div>
+      </div>
+      <ReportView incidentId={current.id} title={current.title} status="generated" report={current.report}/>
+    </div>
+  );
+}
+  
+  function ReportsPage({base, incidents, selected, setSelected}){
+  if (selected) return <IncidentDetail base={base} id={selected} defaultTab="report" onBack={()=>setSelected(null)}/>;
+  const generated = incidents.filter(i=>i.status==="generated");
+  const download = async (id, e) => {
+    e.stopPropagation();
+    const r = await apiCall(base, `/api/incidents/${id}/report`);
+    const rep = r.report_json ? JSON.parse(r.report_json) : r;
+    const blob = new Blob([JSON.stringify(rep,null,2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `${id}-postmortem.json`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="main" style={{width:'100%'}}>
+      <div className="dark-card">
+        <h3>GENERATED REPORTS <span style={{color:'var(--text-dim)',fontWeight:400}}>{generated.length} total</span></h3>
+        {generated.length===0 && <div style={{color:'var(--text-dim)',fontSize:'11px'}}>No postmortems generated yet.</div>}
+        <table className="itable">
+          <tbody>
+            {generated.map(inc=>(
+              <tr className="rowlink" key={inc.id} onClick={()=>setSelected(inc.id)}>
+                <td style={{color:'var(--brass)'}}>{inc.id}</td>
+                <td>{inc.title}</td>
+                <td>{new Date(inc.created_at*1000).toLocaleDateString()}</td>
+                <td><button className="sample-btn" onClick={(e)=>download(inc.id,e)}>DOWNLOAD JSON</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+function Heatmap({byDay}){
+  const map = {};
+  (byDay||[]).forEach(d=>{map[d.date]=d.count;});
+  const days = [];
+  const today = new Date();
+  for(let i=83;i>=0;i--){
+    const d = new Date(today); d.setDate(d.getDate()-i);
+    const key = d.toISOString().slice(0,10);
+    days.push({key, count: map[key]||0});
+  }
+  const cols = [];
+  for(let i=0;i<days.length;i+=7) cols.push(days.slice(i,i+7));
+  const max = Math.max(1, ...days.map(d=>d.count));
+  const shade = c => c===0 ? '#1f1f24' : `rgba(79,122,86,${0.25+0.75*(c/max)})`;
+  return (
+    <div>
+      <div className="heatmap">
+        {cols.map((col,i)=>(
+          <div className="heat-col" key={i}>
+            {col.map(d=>(<div key={d.key} className="heat-cell" title={`${d.key}: ${d.count} report(s)`} style={{background:shade(d.count)}}/>))}
+          </div>
+        ))}
+      </div>
+      <div className="heat-legend"><span>Less</span>
+        {[0,0.25,0.5,0.75,1].map((v,i)=>(<div key={i} className="heat-cell" style={{background: v===0?'#1f1f24':`rgba(79,122,86,${0.25+0.75*v})`}}/>))}
+        <span>More · last 12 weeks of postmortems generated</span>
+      </div>
+    </div>
+  );
+}
+
+function BarChart({labels, data, color}){
+  const ref = useRef(null);
+  const chartRef = useRef(null);
+  useEffect(()=>{
+    if(!ref.current) return;
+    if(chartRef.current) chartRef.current.destroy();
+    chartRef.current = new Chart(ref.current.getContext('2d'), {
+      type:'bar',
+      data:{labels, datasets:[{data, backgroundColor:color, borderRadius:3, maxBarThickness:42}]},
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false}},
+        scales:{
+          x:{ticks:{color:'#a6a196',font:{family:'JetBrains Mono',size:10}}, grid:{color:'#232327'}},
+          y:{ticks:{color:'#a6a196',font:{family:'JetBrains Mono',size:10}}, grid:{color:'#232327'}, beginAtZero:true}
+        }
+      }
+    });
+    return ()=>chartRef.current && chartRef.current.destroy();
+  }, [JSON.stringify(labels), JSON.stringify(data)]);
+  return <div className="chart-wrap"><canvas ref={ref}/></div>;
+}
+
+function Analytics({base}){
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  useEffect(()=>{ apiCall(base,"/api/analytics").then(setData).catch(e=>setError(e.message)); }, [base]);
+
+  if (error) return <div className="main" style={{width:'100%'}}><div className="err-box">⚠ {error}</div></div>;
+  if (!data) return <div className="main" style={{width:'100%'}}><div className="dark-card">Loading analytics from database…</div></div>;
+
+  const sevLabels = Object.keys(data.severity_counts||{});
+  const sevData = sevLabels.map(k=>data.severity_counts[k]);
+
+  return (
+    <div className="main" style={{width:'100%'}}>
+      <div className="kpi-row">
+        <div className="stat-card"><div className="lbl">TOTAL INCIDENTS</div><div className="val">{data.total_incidents}</div></div>
+        <div className="stat-card"><div className="lbl">REPORTS GENERATED</div><div className="val">{data.total_reports}</div></div>
+        <div className="stat-card"><div className="lbl">AVG ROOT-CAUSE CONFIDENCE</div><div className="val">{data.avg_confidence!=null?Math.round(data.avg_confidence*100)+"%":"—"}</div></div>
+        <div className="stat-card"><div className="lbl">AVG COMPLETENESS SCORE</div><div className="val">{data.avg_completeness!=null?Math.round(data.avg_completeness*100)+"%":"—"}</div></div>
+      </div>
+
+      <div className="two-col">
+        <div className="chart-card">
+          <h3>SEVERITY DISTRIBUTION</h3>
+          {sevLabels.length ? <BarChart labels={sevLabels} data={sevData} color="#a8382f"/> : <div style={{color:'var(--text-dim)',fontSize:'11px'}}>No reports generated yet.</div>}
+        </div>
+        <div className="chart-card">
+          <h3>REPORTS PER DAY (LAST 12 WEEKS)</h3>
+          <Heatmap byDay={data.incidents_by_day}/>
+        </div>
+      </div>
+
+      <div className="dark-card">
+        <h3>RECENT REPORTS</h3>
+        {(data.recent_reports||[]).length===0 && <div style={{color:'var(--text-dim)',fontSize:'11px'}}>Nothing generated yet.</div>}
+        <table className="itable">
+          <thead><tr><th>ID</th><th>TITLE</th><th>SEVERITY</th><th>CONFIDENCE</th><th>COMPLETENESS</th></tr></thead>
+          <tbody>
+            {(data.recent_reports||[]).map(r=>(
+              <tr key={r.incident_id}>
+                <td style={{color:'var(--brass)'}}>{r.incident_id}</td>
+                <td>{r.title}</td>
+                <td>{sevLabel(r.severity)}</td>
+                <td>{r.confidence!=null?Math.round(r.confidence*100)+"%":"—"}</td>
+                <td>{r.completeness!=null?Math.round(r.completeness*100)+"%":"—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function Placeholder({label, note}){
+  return (
+    <div className="main" style={{width:'100%'}}>
+      <div className="placeholder-page">
+        <div className="stamp-big">PHASE 2</div>
+        <div style={{fontSize:'12px',letterSpacing:'2px',textAlign:'center',maxWidth:420}}>{label}<br/><span style={{color:'var(--text-dim)',fontSize:'11px',letterSpacing:'0.5px'}}>{note}</span></div>
+      </div>
+    </div>
+  );
+}
+
+function App(){
+  const [base, setBase] = useState(DEFAULT_BASE);
+  const [baseInput, setBaseInput] = useState(DEFAULT_BASE);
+  const [connected, setConnected] = useState(null);
+  const [page, setPage] = useState("dashboard");
+  const [incidents, setIncidents] = useState([]);
+  const [selected, setSelected] = useState(null);
+
+  const checkHealth = useCallback(()=>{
+    apiCall(base, "/api/health").then(()=>setConnected(true)).catch(()=>setConnected(false));
+  }, [base]);
+
+  const refreshIncidents = useCallback(()=>{
+    apiCall(base, "/api/incidents").then(setIncidents).catch(()=>{});
+  }, [base]);
+
+  useEffect(()=>{ checkHealth(); refreshIncidents(); }, [checkHealth, refreshIncidents]);
+
+  const openIncident = (id, targetPage) => { setPage(targetPage||"incidents"); setSelected(id); };
+  const goto = (p) => { setSelected(null); setPage(p); };
+
+  return (
+    <div className="app">
+      {connected === false && (
+        <div className="conn-banner">
+          ⚠ Can't reach the backend at <code>{base || window.location.origin}</code>. Start it with <code>uvicorn main:app --reload</code> in <code>backend/</code>, then either open <code>http://localhost:8000/</code> directly, or point this page at your backend:
+          <input value={baseInput} onChange={e=>setBaseInput(e.target.value)} placeholder="http://localhost:8000"/>
+          <button onClick={()=>setBase(baseInput)}>RECONNECT</button>
+        </div>
+      )}
+      {connected === true && (
+        <div className="conn-ok"><span className="dot-live"/> Connected to live backend at {base || window.location.origin} — {incidents.length} incident(s) in the database</div>
+      )}
+      <TopBar connected={!!connected} onRefresh={()=>{checkHealth();refreshIncidents();}} incidentCount={incidents.length}/>
+      <div className="shell">
+        <Sidebar page={page} setPage={goto}/>
+        {page==="dashboard" && <Dashboard incidents={incidents} base={base} setPage={goto} openIncident={openIncident}/>}
+        {page==="new" && <NewInvestigation base={base} onCreated={refreshIncidents}/>}
+        {page==="demo" && <DemoCases/>}
+        {page==="incidents" && <IncidentsList base={base} incidents={incidents} focus="incidents" selected={selected} setSelected={setSelected}/>}
+        {page==="vault" && <IncidentsList base={base} incidents={incidents} focus="vault" selected={selected} setSelected={setSelected}/>}
+        {page==="reports" && <ReportsPage base={base} incidents={incidents} selected={selected} setSelected={setSelected}/>}
+        {page==="analytics" && <Analytics base={base}/>}
+        {page==="graph" && <Placeholder label="KNOWLEDGE GRAPH" note="Auto-links incidents that share a root cause. Needs a larger history of real incidents to be meaningful — Phase 2 on our roadmap."/>}
+        {page==="runbooks" && <Placeholder label="RUNBOOKS" note="Turns recurring preventive measures into assignable runbooks. Phase 2 on our roadmap."/>}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

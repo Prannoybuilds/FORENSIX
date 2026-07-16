@@ -1,0 +1,11 @@
+On-call notes - S. Rao - INC-2291
+
+14:08 - Acked the page. Checkout-service throwing 500s. Checking Datadog dashboard.
+14:10 - DB connection pool exhausted on orders-db. Pool size looks low compared to normal traffic.
+14:12 - Noticed a deploy went out ~10 min before the alert started (v4.7.2). Suspicious timing.
+14:14 - Diff shows max_pool_size reduced from 50 to 15 in the deploy. That matches - checkout-service
+        makes ~40 concurrent DB calls at peak traffic, way more than 15.
+14:16 - Confirmed with team lead, initiating rollback to v4.7.1.
+14:22 - Error rate dropping post-rollback, pool exhaustion resolved.
+14:25 - Confirmed stable, closing incident. Will file follow-up: load-test pool size changes before
+        merging to main, and add a review requirement for infra-affecting configs.
