@@ -1,6 +1,7 @@
 <div align="center">
 
 # 🔍 FORENSIX
+         ---- powered by ai postmortem detection 
 
 ### Forensic Observability & Root-cause Engine for Network & System Incident eXplanation
 
