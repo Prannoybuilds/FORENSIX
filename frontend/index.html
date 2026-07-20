@@ -9,7 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.min.js"></script>
 <style>
 :root{
   --ink-black:#0b0b0d;
@@ -202,8 +202,21 @@ input,textarea,select{font-family:var(--font-mono);}
 .upload-slot.filled{border-color:rgba(79,122,86,.5);}
 .upload-slot .slot-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:10.5px;letter-spacing:1.5px;color:var(--text-mid);}
 .upload-slot.filled .slot-head{color:var(--moss);}
-.upload-slot textarea{width:100%;background:#121215;border:1px solid var(--panel-border-soft);color:var(--text-hi);font-size:10.5px;padding:10px;border-radius:3px;resize:vertical;min-height:90px;line-height:1.5;}
+.upload-slot textarea{width:100%;background:#121215;border:1px solid var(--panel-border-soft);color:var(--text-hi);font-size:10.5px;padding:10px;border-radius:3px;resize:vertical;min-height:90px;max-height:260px;overflow-y:auto;line-height:1.5;word-break:break-word;}
 .upload-slot textarea:focus{outline:none;border-color:var(--brass-dim);}
+.tl-title{font-size:12.5px;color:var(--text-hi);margin-bottom:2px;font-weight:600;overflow-wrap:break-word;word-break:break-word;}
+.case-title-block h1{overflow-wrap:break-word;word-break:break-word;}
+.exec p{overflow-wrap:break-word;word-break:break-word;}
+.rec-item{overflow-wrap:break-word;word-break:break-word;}
+.sim-desc{overflow-wrap:break-word;word-break:break-word;}
+.stat-card .val{overflow-wrap:break-word;word-break:break-word;}
+
+@keyframes skeleton-pulse{0%,100%{opacity:.45;}50%{opacity:.9;}}
+.skel{background:var(--panel-border-soft);border-radius:3px;animation:skeleton-pulse 1.4s ease-in-out infinite;}
+.skel-paper{background:var(--paper-dark);border-radius:2px;padding:26px 30px;position:relative;}
+.skel-line{height:12px;border-radius:2px;margin-bottom:10px;}
+.skel-row{display:flex;gap:14px;}
+.skel-row .skel{flex:1;height:70px;}
 .sample-btn{background:none;border:1px dashed var(--brass-dim);color:var(--brass);font-size:9px;letter-spacing:1px;padding:4px 8px;border-radius:3px;}
 .sample-btn:hover{background:rgba(185,151,91,.12);}
 .run-btn{background:var(--rust);color:var(--paper);border:none;padding:14px 20px;border-radius:3px;font-size:12px;letter-spacing:2px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 3px 0 #6f1f19;}
@@ -517,6 +530,33 @@ const DEMO_INCIDENTS = [
   }
 ];
 
+function SkeletonReport(){
+  return (
+    <React.Fragment>
+      <div className="skel-paper">
+        <div className="skel skel-line" style={{width:'30%',height:9}}/>
+        <div className="skel skel-line" style={{width:'55%',height:22,marginTop:8}}/>
+        <div className="skel skel-line" style={{width:'70%',marginTop:18}}/>
+        <div className="skel skel-line" style={{width:'90%'}}/>
+        <div className="skel skel-line" style={{width:'60%'}}/>
+      </div>
+      <div className="stat-row">
+        {[0,1,2,3].map(i=><div className="skel" key={i} style={{height:78,borderRadius:3}}/>)}
+      </div>
+      <div className="two-col">
+        <div className="dark-card">
+          <div className="skel skel-line" style={{width:'40%',height:10}}/>
+          {[0,1,2].map(i=><div className="skel skel-line" key={i} style={{width:(80-i*12)+'%'}}/>)}
+        </div>
+        <div className="dark-card">
+          <div className="skel skel-line" style={{width:'40%',height:10}}/>
+          {[0,1,2].map(i=><div className="skel skel-line" key={i} style={{width:(75-i*10)+'%'}}/>)}
+        </div>
+      </div>
+    </React.Fragment>
+  );
+}
+
 function TopBar({connected, onRefresh, incidentCount}){
   return (
     <div className="topbar-v2">
@@ -741,7 +781,7 @@ const previewCase = DEMO_INCIDENTS[0];
   return (
     <React.Fragment>
       <div className="main">
-        {loading && <div className="dark-card">Loading latest case from database…</div>}
+        {loading && <SkeletonReport/>}
         {!loading && current && <ReportView incidentId={current.id} title={current.title} status={current.status} report={report}/>}
         {!loading && !current && (
           <React.Fragment>
@@ -803,7 +843,7 @@ function NewInvestigation({base, onCreated}){
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [incidentId, setIncidentId] = useState(null);
-  const paceRef = useRef(null);
+  const esRef = useRef(null);
 
   const loadSample = async () => {
     try {
@@ -817,7 +857,6 @@ function NewInvestigation({base, onCreated}){
 
   const run = async () => {
     setError(null); setResult(null); setRunning(true); setStep(0);
-    paceRef.current = setInterval(()=> setStep(s => s < AGENTS.length-1 ? s+1 : s), 1800);
     try {
       const artifacts = Object.entries(content).filter(([,v])=>v.trim()).map(([type,c])=>({type, content:c}));
       if (artifacts.length === 0) throw new Error("Add at least one artifact before running the investigation.");
@@ -826,20 +865,56 @@ function NewInvestigation({base, onCreated}){
         body: JSON.stringify({title: title || "Untitled incident", artifacts})
       });
       setIncidentId(created.incident_id);
-      const report = await apiCall(base, `/api/incidents/${created.incident_id}/generate`, {method:"POST"});
-      clearInterval(paceRef.current);
-      setStep(AGENTS.length);
-      setResult(report);
+
+      // Real per-agent progress via Server-Sent Events — no pacing timer.
+      // The backend emits one event per agent (running -> done) as it
+      // actually completes each stage, then a final "complete" event with
+      // the assembled report.
+      await new Promise((resolve, reject) => {
+        const es = new EventSource(`${base}/api/incidents/${created.incident_id}/generate/stream`);
+        esRef.current = es;
+
+        es.onmessage = (msg) => {
+          let payload;
+          try { payload = JSON.parse(msg.data); } catch(e){ return; }
+
+          if (payload.event === "complete") {
+            setStep(AGENTS.length);
+            setResult(payload.report);
+            es.close();
+            resolve();
+            return;
+          }
+          if (payload.event === "error") {
+            es.close();
+            reject(new Error(payload.message || "Pipeline failed"));
+            return;
+          }
+          if (payload.agent) {
+            const idx = AGENTS.findIndex(a => a.name === payload.agent);
+            if (idx === -1) return;
+            // status "running" -> highlight this stage as active (step = idx)
+            // status "done" -> advance past it (step = idx + 1)
+            setStep(payload.status === "done" ? idx + 1 : idx);
+          }
+        };
+
+        es.onerror = () => {
+          es.close();
+          reject(new Error("Lost connection to the generation stream."));
+        };
+      });
+
       onCreated && onCreated();
     } catch(e){
-      clearInterval(paceRef.current);
       setError(e.message);
       setStep(-1);
     }
+    if (esRef.current) { esRef.current.close(); esRef.current = null; }
     setRunning(false);
   };
 
-  useEffect(()=>()=>clearInterval(paceRef.current), []);
+  useEffect(()=>()=>{ if (esRef.current) esRef.current.close(); }, []);
 
   const done = step >= AGENTS.length;
 
@@ -898,7 +973,7 @@ function NewInvestigation({base, onCreated}){
               );
             })}
           </div>
-          {running && <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'10px'}}>Pipeline stages are paced for display while the backend runs the real, single /generate call (5 sequential Claude calls) — the report below is the actual response, not a simulation.</div>}
+          {running && <div style={{fontSize:'10px',color:'var(--text-dim)',marginTop:'10px'}}>Live status via Server-Sent Events — each row above updates the moment that agent actually finishes on the backend. Nothing here is paced or simulated.</div>}
         </div>
       )}
 
@@ -930,7 +1005,7 @@ function IncidentDetail({base, id, defaultTab, onBack}){
     setGenerating(false);
   };
 
-  if (!detail) return <div className="dark-card">Loading case file…</div>;
+  if (!detail) return <div className="main" style={{width:'100%'}}><SkeletonReport/></div>;
   const report = detail.report ? (detail.report.report_json ? JSON.parse(detail.report.report_json) : detail.report) : null;
 
   return (
@@ -1036,6 +1111,7 @@ function DemoCases(){
           ))}
         </div>
       </div>
+      <IncidentMetricsPanel key={current.id} report={current.report}/>
       <ReportView incidentId={current.id} title={current.title} status="generated" report={current.report}/>
     </div>
   );
@@ -1129,44 +1205,252 @@ function BarChart({labels, data, color}){
   return <div className="chart-wrap"><canvas ref={ref}/></div>;
 }
 
+const PIE_PALETTE = ["#a8382f","#b9975b","#4f7a56","#c94a3d","#7d6a45","#5a7a9a"];
+
+function PieChart({labels, data}){
+  const ref = useRef(null);
+  const chartRef = useRef(null);
+  useEffect(()=>{
+    if(!ref.current) return;
+    if(chartRef.current) chartRef.current.destroy();
+    chartRef.current = new Chart(ref.current.getContext('2d'), {
+      type:'pie',
+      data:{labels, datasets:[{data, backgroundColor:labels.map((_,i)=>PIE_PALETTE[i % PIE_PALETTE.length]), borderColor:'#0b0b0d', borderWidth:2}]},
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{position:'bottom', labels:{color:'#a6a196', font:{family:'JetBrains Mono', size:10}, boxWidth:10, padding:12}}}
+      }
+    });
+    return ()=>chartRef.current && chartRef.current.destroy();
+  }, [JSON.stringify(labels), JSON.stringify(data)]);
+  return <div className="chart-wrap"><canvas ref={ref}/></div>;
+}
+
+function IncidentMetricsPanel({report}){
+  if(!report) return null;
+  const timeline = report.timeline || [];
+  const impact = report.impact || {};
+  const rootCause = report.root_cause || {};
+  const quality = report.quality_review || {};
+
+  const services = impact.services_affected && impact.services_affected.length
+    ? impact.services_affected
+    : ["Unknown"];
+  const servicesData = services.map(()=>Math.round(100 / services.length));
+
+  const sourceCounts = {};
+  timeline.forEach(t=>{ const s = t.source || "other"; sourceCounts[s] = (sourceCounts[s]||0)+1; });
+  const sourceLabels = Object.keys(sourceCounts);
+  const sourceData = sourceLabels.map(k=>sourceCounts[k]);
+
+  const scoreLabels = ["Confidence","Completeness","Consistency"];
+  const scoreData = [
+    Math.round((rootCause.confidence||0)*100),
+    Math.round((quality.completeness_score||0)*100),
+    Math.round((quality.consistency_score||0)*100)
+  ];
+
+  return (
+    <div className="two-col" style={{marginTop:0}}>
+      <div className="chart-card">
+        <h3>SERVICES AFFECTED — DISTRIBUTION</h3>
+        <PieChart labels={services} data={servicesData}/>
+      </div>
+      <div className="chart-card">
+        <h3>EVIDENCE SOURCES — EVENT HISTOGRAM</h3>
+        {sourceLabels.length ? <BarChart labels={sourceLabels} data={sourceData} color="#b9975b"/> : <div style={{color:'var(--text-dim)',fontSize:'11px'}}>No timeline sources recorded.</div>}
+      </div>
+      <div className="chart-card" style={{gridColumn:'1 / -1'}}>
+        <h3>AI CONFIDENCE &amp; QUALITY SCORES</h3>
+        <BarChart labels={scoreLabels} data={scoreData} color="#4f7a56"/>
+      </div>
+    </div>
+  );
+}
+
+function KnowledgeGraph({setPage}){
+  const nodes = DEMO_INCIDENTS;
+  const cx = 300, cy = 210, r = 165;
+  const pos = nodes.map((n,i)=>{
+    const angle = (i / nodes.length) * 2 * Math.PI - Math.PI/2;
+    return { x: cx + r*Math.cos(angle), y: cy + r*Math.sin(angle) };
+  });
+  const edges = [];
+  for(let i=0;i<nodes.length;i++){
+    for(let j=i+1;j<nodes.length;j++){
+      const a = (nodes[i].report.impact.services_affected)||[];
+      const b = (nodes[j].report.impact.services_affected)||[];
+      const shared = a.filter(s=>b.includes(s));
+      if(shared.length>0) edges.push({i,j,shared});
+    }
+  }
+  const sevColor = s => s==="SEV-1" ? "var(--rust-bright)" : (s==="SEV-2" ? "var(--brass)" : "var(--moss)");
+
+  return (
+    <div className="main" style={{width:'100%'}}>
+      <div className="dark-card">
+        <h3>KNOWLEDGE GRAPH <span style={{color:'var(--text-dim)',fontWeight:400}}>— demo data, 8 case-library incidents linked by shared affected services</span></h3>
+        <svg viewBox="0 0 600 420" style={{width:'100%',height:420}}>
+          {edges.map((e,idx)=>(
+            <line key={idx} x1={pos[e.i].x} y1={pos[e.i].y} x2={pos[e.j].x} y2={pos[e.j].y} stroke="var(--panel-border)" strokeWidth="1.5"/>
+          ))}
+          {nodes.map((n,i)=>(
+            <g key={n.id} style={{cursor:'pointer'}} onClick={()=>setPage && setPage("demo")}>
+              <circle cx={pos[i].x} cy={pos[i].y} r="24" fill="#121215" stroke={sevColor(n.report.impact.severity)} strokeWidth="2"/>
+              <text x={pos[i].x} y={pos[i].y+4} textAnchor="middle" fontSize="10" fontFamily="JetBrains Mono" fill="var(--text-hi)">{n.id.replace("DEMO-","#")}</text>
+              <text x={pos[i].x} y={pos[i].y+40} textAnchor="middle" fontSize="9" fontFamily="JetBrains Mono" fill="var(--text-dim)">{n.report.impact.severity}</text>
+            </g>
+          ))}
+        </svg>
+        <div style={{fontSize:'10.5px',color:'var(--text-dim)',marginTop:6}}>
+          Nodes are the 8 Case Library demo incidents (no live incidents exist yet). An edge means two incidents
+          shared at least one affected service. Click a node to open Case Library. Real, cross-incident linking
+          from your production database is Phase 2 on the roadmap.
+        </div>
+      </div>
+      <div className="dark-card">
+        <h3>SHARED-SERVICE CLUSTERS</h3>
+        {edges.length===0 && <div style={{color:'var(--text-dim)',fontSize:'11px'}}>No shared-service links found among the current demo set.</div>}
+        {edges.map((e,idx)=>(
+          <div className="rec-item" key={idx}>
+            {Ico("check",13)} {nodes[e.i].id} ↔ {nodes[e.j].id} — shared: {e.shared.join(", ")}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RunbooksLibrary({setPage}){
+  const map = {};
+  DEMO_INCIDENTS.forEach(d=>{
+    (d.report.preventive_measures||[]).forEach(m=>{
+      const key = m.action;
+      if(!map[key]) map[key] = {action:m.action, priority:m.priority, sources:[]};
+      map[key].sources.push(d.id);
+    });
+  });
+  const items = Object.values(map).sort((a,b)=> (a.priority||"").localeCompare(b.priority||""));
+
+  return (
+    <div className="main" style={{width:'100%'}}>
+      <div className="dark-card">
+        <h3>RUNBOOKS <span style={{color:'var(--text-dim)',fontWeight:400}}>— demo data, derived from Case Library preventive measures</span></h3>
+        <div style={{fontSize:'10.5px',color:'var(--text-dim)',marginBottom:10}}>
+          Each entry below is deduplicated across the 8 demo incidents in Case Library, grouped by recommended
+          action. Assigning these to owners with due dates and tracking completion is Phase 2 on the roadmap.
+        </div>
+        {items.map((it,i)=>(
+          <div className="rec-item" key={i}>
+            {Ico("check",13)} {it.action}
+            <span className="pr" title={"Seen in: "+it.sources.join(", ")}>{it.priority}</span>
+          </div>
+        ))}
+      </div>
+      <div className="dark-card">
+        <button className="link-btn" onClick={()=>setPage && setPage("demo")}>VIEW SOURCE CASES IN CASE LIBRARY →</button>
+      </div>
+    </div>
+  );
+}
+
 function Analytics({base}){
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   useEffect(()=>{ apiCall(base,"/api/analytics").then(setData).catch(e=>setError(e.message)); }, [base]);
 
   if (error) return <div className="main" style={{width:'100%'}}><div className="err-box">⚠ {error}</div></div>;
-  if (!data) return <div className="main" style={{width:'100%'}}><div className="dark-card">Loading analytics from database…</div></div>;
+  if (!data) return (
+    <div className="main" style={{width:'100%'}}>
+      <div className="kpi-row">
+        {[0,1,2,3].map(i=><div className="skel" key={i} style={{height:78,borderRadius:3}}/>)}
+      </div>
+      <div className="two-col">
+        <div className="skel" style={{height:260,borderRadius:3}}/>
+        <div className="skel" style={{height:260,borderRadius:3}}/>
+      </div>
+    </div>
+  );
 
-  const sevLabels = Object.keys(data.severity_counts||{});
-  const sevData = sevLabels.map(k=>data.severity_counts[k]);
+  // Real DB has 0 reports (expected until a real API key generates an
+  // incident). Rather than show a blank page during a walkthrough, derive
+  // the same shapes from the 8 Case Library demo incidents and label it
+  // clearly as preview data — never presented as real.
+  const isPreview = (data.total_reports || 0) === 0;
+
+  let viewData = data;
+  if (isPreview) {
+    const sevCounts = {};
+    let confSum=0, compSum=0, consSum=0, n=0;
+    DEMO_INCIDENTS.forEach(d=>{
+      const r = d.report;
+      const sev = (r.impact.severity||"UNKNOWN").toUpperCase();
+      sevCounts[sev] = (sevCounts[sev]||0)+1;
+      confSum += r.root_cause.confidence||0;
+      compSum += r.quality_review.completeness_score||0;
+      consSum += r.quality_review.consistency_score||0;
+      n++;
+    });
+    const today = new Date();
+    const byDay = DEMO_INCIDENTS.map((d,i)=>{
+      const dt = new Date(today); dt.setDate(dt.getDate() - i);
+      return {date: dt.toISOString().slice(0,10), count: 1};
+    });
+    viewData = {
+      total_incidents: DEMO_INCIDENTS.length,
+      total_reports: DEMO_INCIDENTS.length,
+      severity_counts: sevCounts,
+      avg_confidence: n ? confSum/n : null,
+      avg_completeness: n ? compSum/n : null,
+      incidents_by_day: byDay,
+      recent_reports: DEMO_INCIDENTS.map(d=>({
+        incident_id: d.id, title: d.title,
+        severity: d.report.impact.severity,
+        confidence: d.report.root_cause.confidence,
+        completeness: d.report.quality_review.completeness_score,
+      })),
+    };
+  }
+
+  const sevLabels = Object.keys(viewData.severity_counts||{});
+  const sevData = sevLabels.map(k=>viewData.severity_counts[k]);
 
   return (
     <div className="main" style={{width:'100%'}}>
+      {isPreview && (
+        <div className="dark-card" style={{border:'1px solid var(--brass-dim)', display:'flex', alignItems:'center', gap:10}}>
+          {Ico("flash",14,{color:'var(--brass)'})}
+          <div style={{fontSize:'11px', color:'var(--brass)'}}>
+            PREVIEW MODE — no real incidents in the database yet, so these charts show the 8 Case Library demo
+            incidents instead. Real analytics will replace this automatically once you generate an actual report.
+          </div>
+        </div>
+      )}
       <div className="kpi-row">
-        <div className="stat-card"><div className="lbl">TOTAL INCIDENTS</div><div className="val">{data.total_incidents}</div></div>
-        <div className="stat-card"><div className="lbl">REPORTS GENERATED</div><div className="val">{data.total_reports}</div></div>
-        <div className="stat-card"><div className="lbl">AVG ROOT-CAUSE CONFIDENCE</div><div className="val">{data.avg_confidence!=null?Math.round(data.avg_confidence*100)+"%":"—"}</div></div>
-        <div className="stat-card"><div className="lbl">AVG COMPLETENESS SCORE</div><div className="val">{data.avg_completeness!=null?Math.round(data.avg_completeness*100)+"%":"—"}</div></div>
+        <div className="stat-card"><div className="lbl">TOTAL INCIDENTS</div><div className="val">{viewData.total_incidents}</div></div>
+        <div className="stat-card"><div className="lbl">REPORTS GENERATED</div><div className="val">{viewData.total_reports}</div></div>
+        <div className="stat-card"><div className="lbl">AVG ROOT-CAUSE CONFIDENCE</div><div className="val">{viewData.avg_confidence!=null?Math.round(viewData.avg_confidence*100)+"%":"—"}</div></div>
+        <div className="stat-card"><div className="lbl">AVG COMPLETENESS SCORE</div><div className="val">{viewData.avg_completeness!=null?Math.round(viewData.avg_completeness*100)+"%":"—"}</div></div>
       </div>
 
       <div className="two-col">
         <div className="chart-card">
-          <h3>SEVERITY DISTRIBUTION</h3>
+          <h3>SEVERITY DISTRIBUTION{isPreview && <span style={{color:'var(--brass)',fontWeight:400,fontSize:'9px',letterSpacing:'1px'}}> · PREVIEW</span>}</h3>
           {sevLabels.length ? <BarChart labels={sevLabels} data={sevData} color="#a8382f"/> : <div style={{color:'var(--text-dim)',fontSize:'11px'}}>No reports generated yet.</div>}
         </div>
         <div className="chart-card">
-          <h3>REPORTS PER DAY (LAST 12 WEEKS)</h3>
-          <Heatmap byDay={data.incidents_by_day}/>
+          <h3>REPORTS PER DAY (LAST 12 WEEKS){isPreview && <span style={{color:'var(--brass)',fontWeight:400,fontSize:'9px',letterSpacing:'1px'}}> · PREVIEW</span>}</h3>
+          <Heatmap byDay={viewData.incidents_by_day}/>
         </div>
       </div>
 
       <div className="dark-card">
-        <h3>RECENT REPORTS</h3>
-        {(data.recent_reports||[]).length===0 && <div style={{color:'var(--text-dim)',fontSize:'11px'}}>Nothing generated yet.</div>}
+        <h3>RECENT REPORTS{isPreview && <span style={{color:'var(--brass)',fontWeight:400,fontSize:'9px',letterSpacing:'1px'}}> · PREVIEW</span>}</h3>
+        {(viewData.recent_reports||[]).length===0 && <div style={{color:'var(--text-dim)',fontSize:'11px'}}>Nothing generated yet.</div>}
         <table className="itable">
           <thead><tr><th>ID</th><th>TITLE</th><th>SEVERITY</th><th>CONFIDENCE</th><th>COMPLETENESS</th></tr></thead>
           <tbody>
-            {(data.recent_reports||[]).map(r=>(
+            {(viewData.recent_reports||[]).map(r=>(
               <tr key={r.incident_id}>
                 <td style={{color:'var(--brass)'}}>{r.incident_id}</td>
                 <td>{r.title}</td>
@@ -1236,8 +1520,8 @@ function App(){
         {page==="vault" && <IncidentsList base={base} incidents={incidents} focus="vault" selected={selected} setSelected={setSelected}/>}
         {page==="reports" && <ReportsPage base={base} incidents={incidents} selected={selected} setSelected={setSelected}/>}
         {page==="analytics" && <Analytics base={base}/>}
-        {page==="graph" && <Placeholder label="KNOWLEDGE GRAPH" note="Auto-links incidents that share a root cause. Needs a larger history of real incidents to be meaningful — Phase 2 on our roadmap."/>}
-        {page==="runbooks" && <Placeholder label="RUNBOOKS" note="Turns recurring preventive measures into assignable runbooks. Phase 2 on our roadmap."/>}
+        {page==="graph" && <KnowledgeGraph setPage={goto}/>}
+        {page==="runbooks" && <RunbooksLibrary setPage={goto}/>}
       </div>
     </div>
   );

@@ -123,3 +123,42 @@ def run_pipeline(incident_id: str, title: str) -> dict:
     review = quality_reviewer_agent(draft)
     draft["quality_review"] = review
     return draft
+
+
+def run_pipeline_stream(incident_id: str, title: str):
+    """Same 5-agent pipeline as run_pipeline(), but yields a progress event
+    right before and right after each agent runs, so a caller (e.g. an SSE
+    endpoint) can report real per-agent status instead of a paced estimate.
+    The final yielded event carries the complete assembled report.
+    """
+    yield {"agent": "Timeline Builder", "status": "running"}
+    timeline = timeline_builder_agent(incident_id)
+    yield {"agent": "Timeline Builder", "status": "done"}
+
+    yield {"agent": "Root Cause Investigator", "status": "running"}
+    root_cause = root_cause_agent(incident_id, timeline)
+    yield {"agent": "Root Cause Investigator", "status": "done"}
+
+    yield {"agent": "Impact Analyzer", "status": "running"}
+    impact = impact_analyzer_agent(incident_id)
+    yield {"agent": "Impact Analyzer", "status": "done"}
+
+    yield {"agent": "Remediation Planner", "status": "running"}
+    remediation = remediation_agent(incident_id, root_cause)
+    yield {"agent": "Remediation Planner", "status": "done"}
+
+    draft = {
+        "title": title,
+        "timeline": timeline.get("timeline", []),
+        "root_cause": root_cause,
+        "impact": impact,
+        "resolution": remediation.get("resolution", ""),
+        "preventive_measures": remediation.get("preventive_measures", []),
+    }
+
+    yield {"agent": "Quality Reviewer", "status": "running"}
+    review = quality_reviewer_agent(draft)
+    draft["quality_review"] = review
+    yield {"agent": "Quality Reviewer", "status": "done"}
+
+    yield {"event": "complete", "report": draft}

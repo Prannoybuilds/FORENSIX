@@ -1,10 +1,12 @@
 import os
+import json
 from collections import Counter, defaultdict
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List
 import db
@@ -62,6 +64,32 @@ def generate_report(incident_id: str):
     report = agents.run_pipeline(incident_id, title)
     db.save_report(incident_id, report)
     return report
+
+
+@app.get("/api/incidents/{incident_id}/generate/stream")
+def generate_report_stream(incident_id: str):
+    """Server-Sent Events version of /generate. Emits one JSON event per
+    agent (running -> done) as the pipeline actually progresses, then a
+    final {"event": "complete", "report": {...}} event once everything is
+    assembled and saved. The frontend reads this via EventSource so the
+    pipeline UI reflects real backend progress instead of a paced estimate.
+    """
+    artifacts = db.get_artifacts(incident_id)
+    if not artifacts:
+        raise HTTPException(404, "No artifacts found for this incident")
+    incidents = {i["id"]: i for i in db.list_incidents()}
+    title = incidents.get(incident_id, {}).get("title", "Untitled Incident")
+
+    def event_generator():
+        try:
+            for update in agents.run_pipeline_stream(incident_id, title):
+                if update.get("event") == "complete":
+                    db.save_report(incident_id, update["report"])
+                yield f"data: {json.dumps(update)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @app.get("/api/incidents/{incident_id}/report")
