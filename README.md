@@ -168,7 +168,8 @@ postmortem-generator/
 
 <div align="center">
 
-**License:** TBD
+**License:** TBdd
+
 
 <br/>
 
